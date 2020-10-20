@@ -1,0 +1,12 @@
+Package: variantAnalysis
+Type: Package
+Title: sarscov2 variant analysis 
+Version: 0.0.1
+Date: 2020-10-19
+Author: Erik Volz
+Maintainer: Erik Volz <e.volz@imperial.ac.uk>
+Description: -skygrowth comparison between clusters -identify recurrent mutations & quantify offspring beneath mixed nodes -frequency analysis 
+Depends: ape,lubridate,BayesianTools
+Suggests: sarscov2
+License: GPL
+RoxygenNote: 7.1.0
