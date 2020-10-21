@@ -6,7 +6,6 @@
 \usage{
 hier_bayes_exponentialGrowth_frequency(
   s,
-  d,
   iterations = 8e+06,
   thin = 200,
   ncpu = 4,
@@ -17,8 +16,6 @@ hier_bayes_exponentialGrowth_frequency(
 }
 \arguments{
 \item{s}{data frame that describes each sample, must have columns: del_introduction, sample_time}
-
-\item{d}{data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )}
 
 \item{MINT}{minimum sample time for including cluster}
 

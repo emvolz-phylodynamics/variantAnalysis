@@ -79,20 +79,29 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 #' Hierarchical Bayesian inference of cluster-wise selection coefficients with a random effect corresponding to a dichotomous genotype
 #' 
 #' @param s data frame that describes each sample, must have columns: del_introduction, sample_time
-#' @param d data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
 #' @param MINT minimum sample time for including cluster 
 #' @param MAXT exclude samples after this date 
 #' @param MU sets time scale of process and generation time. Generation time is 1/MU years
 #' @return Bayesian sampler output produced by BayesianTools::runMCMC
 #' @export 
-hier_bayes_exponentialGrowth_frequency <- function(s, d, iterations = 8000000, thin = 200 , ncpu = 4, MINT =  -Inf, MAXT = 2020.25, MU = 73)
+hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thin = 200 , ncpu = 4, MINT =  -Inf, MAXT = 2020.25, MU = 73)
 {
+	
 	library( BayesianTools )
 	s <- s[ s$sample_time > MINT  &  s$sample_time <= MAXT  , ] 
 	s <- s[ order( s$sample_time ) , ]
 	x = table( s$del_introduction ) ; x = x[ x >= 10]; keep_lineages <- names(x) 
 	s <- s [ s$del_introduction %in% keep_lineages , ]
-
+	
+	#  d data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
+	Xs <- split( s, s$del_introduction )
+	d = data.frame(
+		lineage = sapply( Xs, function(x) x$del_introduction[1] )
+		,genotype = sapply( Xs, function(x) x$genotype[1] )
+		,first_sample  = sapply( Xs, function(x) min( x$sample_time) )
+		, stringsAsFactors=FALSE
+	)
+	
 	# remove any clusters without samples 
 	d <- d[ d$lineage %in% unique( s$del_introduction ) , ] 
 	M <- nrow(d) 
@@ -119,11 +128,11 @@ hier_bayes_exponentialGrowth_frequency <- function(s, d, iterations = 8000000, t
 	  ,  1
 	)
 	theta0.ub <- c( rep(2, M)
-	  , rep( 10, M )
+	  , rep( MU, M )
 	  ,  5
 	)
 	theta0.lb <- c( rep(-2, M)
-	  , rep(-10, M )
+	  , rep(-MU, M )
 	  ,  .01
 	)
 	names(theta0) = names(theta0.lb) = names(theta0.ub) = pnames
@@ -191,7 +200,6 @@ hier_bayes_exponentialGrowth_frequency <- function(s, d, iterations = 8000000, t
 		ll <- sum(num) - sum(den) 
 		ll
 	}
-
 	ll0.1 <- function( theta ){
 		if ( is.matrix( theta )){
 			return( apply( theta, MAR=2, ll0 ) )
@@ -208,7 +216,6 @@ hier_bayes_exponentialGrowth_frequency <- function(s, d, iterations = 8000000, t
 	saveRDS( f0, file=paste0('a5f0_', i, '.rds' ) )
 	f0 
 }
-
 
 
 
