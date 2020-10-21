@@ -470,3 +470,83 @@ plot_cluster_sizes <- function(X, mincs = 2 ){
 	p = ggplot( X1 , aes( x = origin, y = size, colour = genotype ) ) + geom_point()  + scale_y_log10() + stat_smooth( method = lm ) 
 	p
 }
+
+
+
+#' Performs a simple logistic model fit and make a frequency plot 
+#' 
+#' genotype has two values: 'ancestral'(or 'wt') and mutant 
+#'
+#' @param s1 data frame with columns genotype and sample_time 
+#' @param cols Colours for plotting 
+#' @param bw bin width for aggregating data 
+#' @export 
+plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black'))
+{ 
+	library( ggplot2 )
+	library( lubridate ) 
+	library( cowplot )
+	
+	x = table( s1$genotype  )
+	if ( 'wt' %in% names (x ) )
+		s1$genotype [ s1$genotype == 'wt'] <- 'ancestral'
+	
+	m = glm( (genotype=='mutant') ~ sample_time, family = binomial(link='logit'),  data = s1  )
+	print( summary( m ))
+	rs = c( coef( m )[2] ,  confint( m ) [2, ]  )
+	RD <- seq( 2, 3.5, length = 3) #hypothetical rep numbers for ancestral 
+	g = 365 / 6.5
+	rD <- RD * g - g
+	#~ selcoef <- rs / rD 
+	selcoef <- (rs) %*% t( 1/rD )
+	print(median( selcoef ))
+	print(range( selcoef ))
+	selcoef = c( median( selcoef ), range( selcoef ) )
+	
+	s1 <- s1[ !is.na( s1$sample_time ), ]
+	.cols = cols
+	.time <- seq( min( s1$sample_time )-bw/365, max( s1$sample_time )+bw/365, by = bw / 365 )
+	h = hist( s1$sample_time,  breaks = .time , plot=FALSE)
+	s1dg = split( s1, s1$genotype )
+	hd = hist( s1dg$ancestral$sample_time, breaks = .time , plot=F)
+	hg = hist( s1dg$mutant$sample_time, breaks = .time , plot=F)
+	
+	sweek = data.frame( time = hd$mids, nD = hd$counts, nG = hg$counts, date = date_decimal( hd$mids )  )
+	sweek$n = with( sweek, nD + nG )
+	sweek$pG <- with( sweek, nG / n )
+	
+	
+	#.time <- seq( 2020, 2020.25, length = 100 )
+	theta2pg <- function( theta ){
+		t50 = -theta[1] / theta[2]
+		logodds50 = theta[1]+t50 * theta[2]
+		#pg50 = exp( logodds50 ) / ( 1 + exp( logodds50) ) # = 50%, checking the math 
+		pg.time <- exp( theta[2] * (sweek$time - t50 ) ) / ( 1 +  exp( theta[2] * (sweek$time - t50 ) ) )
+		pg.time
+	}
+	sweek$fitted <- theta2pg( coef(m) )
+	
+	prof = profile( m, which =1  )[[1]]
+	thetaub = tail( unlist( tail( prof[ prof$z < -1.96 , ], 1) ), 2 )
+	thetalb = tail( unlist( head( prof[ prof$z  > 1.96 , ], 1) ), 2 )
+	sweek$fittedub = theta2pg( thetaub )
+	sweek$fittedlb = theta2pg( thetalb )
+	
+	sweek$nglb =  with( sweek , qbinom( .025, size = n, prob = fittedub)  )
+	sweek$ngub =  with( sweek, qbinom( .975, size = n, prob = fittedlb )  )
+	sweek$pglb <- with( sweek, nglb / n )
+	sweek$pgub <- with( sweek, ngub / n )
+	k = with( sweek ,  pmin(nD,nG)==0 )
+	sweek$pgub[ k ] <- 1
+	sweek$pglb[ k ] <- 0
+	
+	p0 = ggplot( data = sweek, aes( x = date, y = fitted , ymax = pgub, ymin=pglb ) ) + geom_path() + geom_point( aes( x = date, y = pG, size =n ), colour = 'black' ) + geom_ribbon(alpha = .2 ) + theme_classic()  + theme( legend.position = 'none' ) + xlab('') + ylab('Frequency of sampling mutant')
+	
+	X = with (sweek, data.frame( date = date, n = nD , genotype='ancestral' ) )
+	X <- rbind( X, with (sweek, data.frame( date = date, n = nG , genotype='mutant' ) ) )
+	p1 = ggplot( data= X , aes( x = date, y = n, fill = genotype)) + geom_bar( position = 'stack', stat='identity', colour = 'grey' , alpha=.5) + scale_fill_manual( values = .cols)  + xlab('') + ylab('Samples') + theme_classic() + theme( legend.position='top')
+	p = plot_grid( plotlist= list( p0 , p1 ), nrow =  2) # ggtitle( paste('sel coef', selcoef))
+	p$m = m 
+	list( p0, p1, p, m )
+}
+
