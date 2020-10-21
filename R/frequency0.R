@@ -30,6 +30,8 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 	
 	# remove sample times outside of mint and maxt 
 	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	s <- s[ , c('del_introduction', 'sample_time', 'genotype') ] ## remove identifiers 
+	rownames(s) <- NULL 
 	# recompute clust spans 
 	s_clusts <- split( s, s$del_introduction )
 	clusts <- names( s_clusts )
@@ -55,17 +57,24 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 	rs_ests_wt <- rs_ests[ , clust_genotypes == 'wt' ]
 	rs_ests_mutant <- rs_ests[ , clust_genotypes == 'mutant' ]
 	
-	sinaplot::sinaplot( list( rs_ests_wt[1,], rs_ests_mutant[1, ] ) )
-	kruskal.test( list(  rs_ests_wt[1,], rs_ests_mutant[1, ] )  ) 
+	#sinaplot::sinaplot( list( rs_ests_wt[1,], rs_ests_mutant[1, ] ) )
+	#kruskal.test( list(  rs_ests_wt[1,], rs_ests_mutant[1, ] )  ) 
+	s_mutant = rs_ests_mutant/r 
+	smut = s_mutant[1, ] 
+	w = apply( s_mutant , 2, function(x) 1/abs( diff( tail(x,2)) )) 
+	m = lm( smut ~ 1, weight = w ); 
 	
-	list( s_mutant = rs_ests_mutant/r 
+	list( s_mutant = s_mutant
 		, s_wt = rs_ests_wt/r
+		, selcoef = c( coef(m) , confint( m )  )
 		, t.test = t.test ( rs_ests_mutant[1, ]/r  ) 
 		, data = s
-		, data_clusts  = data_clusts 
+		, data_clusts  = s_clusts 
 		, clust_genotypes = clust_genotypes 
 	)
 }
+
+
 
 #' Hierarchical Bayesian inference of cluster-wise selection coefficients with a random effect corresponding to a dichotomous genotype
 #' 
