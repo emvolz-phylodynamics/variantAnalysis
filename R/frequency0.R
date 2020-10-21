@@ -410,3 +410,63 @@ hier_bayes_pairwiseLogistic_frequency <- function(s, d
 	saveRDS( f0, file=paste0('hier_bayes_pairwiseLogistic_frequency', '_', i, '.rds' ) )
 	f0 
 }
+
+
+#' Compute cluster sizes only counting clusters with first sample occuring within given range and arrange by genotype 
+#' 
+#' @param s data frame with sequence_name(character), del_introduction(character), sample_time(numeric), genotype (wt or mutant)
+#' @param mint lower sample time bound. Clusters must have sample before this time
+#' @param maxt upper sample time bound. Clusters must have sample after this time
+#' @return data frame with cluster sizes, origin time, and genotype 
+#' @export 
+cluster_sizes <- function(s, mint = 2020.20, maxt = 2020.35)
+{
+#~  mint = decimal_date( as.Date('2020-08-01')) 
+#~  maxt = decimal_date( as.Date('2020-10-07'))
+	# filter missing
+	s <- s[with( s, !is.na(sample_time) & !is.na(del_introduction) & !is.na(genotype) ) , ]
+	
+	# compute spans and make sure they **begin** within period ; exclude others 
+	s_clusts <- split( s, s$del_introduction )
+	clusts <- names( s_clusts )
+	clust_starts <- sapply( s_clusts , function(ss){
+		min( ss$sample_time )
+	})
+	names( clust_starts ) <- clusts 
+	keep <- names( clust_starts )[ clust_starts >= mint  &  clust_starts <= maxt ]
+	s <- s[ s$del_introduction %in% keep ,  ]
+	
+	# remove sample times outside of mint and maxt 
+	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	s <- s[ , c('del_introduction', 'sample_time', 'genotype') ] ## remove identifiers 
+	rownames(s) <- NULL 
+	# recompute clust spans 
+	s_clusts <- split( s, s$del_introduction )
+	clusts <- names( s_clusts )
+	clustspans <- sapply( s_clusts , function(ss){
+		range( ss$sample_time )
+	})# time range of cluster 
+	colnames( clustspans ) <- clusts 
+	clust_starts <- sapply( s_clusts , function(ss){
+		min( ss$sample_time )
+	})
+	names( clust_starts ) <- clusts 
+	clust_genotypes <- sapply( s_clusts, function(x) x$genotype[1] )
+	
+	s_genotype = split( s, s$genotype )
+	
+	X= data.frame( cluster = clusts 
+	 , origin = clust_starts
+	 , size = sapply( s_clusts, nrow )
+	 , genotype = clust_genotypes 
+	)
+	X
+}
+
+#' @export 
+plot_cluster_sizes <- function(X, mincs = 2 ){
+	library( ggplot2 )
+	X1 <- X [ X$size  > mincs , ]
+	p = ggplot( X1 , aes( x = origin, y = size, colour = genotype ) ) + geom_point()  + scale_y_log10() + stat_smooth( method = lm ) 
+	p
+}
