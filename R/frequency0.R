@@ -39,7 +39,12 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 		range( ss$sample_time )
 	})# time range of cluster 
 	colnames( clustspans ) <- clusts 
-	clust_genotypes <- sapply( s_clusts, function(x) x$genotype[1] )
+	
+	# majority rule for genotype
+	clust_genotypes <- sapply( s_clusts, function(x) {
+		tt = table(x$genotype)
+		names( tt[ which.max(tt) ] )[1] 
+	})
 	
 	s_genotype = split( s, s$genotype )
 	
@@ -91,6 +96,7 @@ hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thi
 	s <- s[ s$sample_time > MINT  &  s$sample_time <= MAXT  , ] 
 	s <- s[ order( s$sample_time ) , ]
 	x = table( s$del_introduction ) ; x = x[ x >= 10]; keep_lineages <- names(x) 
+#TODO min cluster size ^^
 	s <- s [ s$del_introduction %in% keep_lineages , ]
 	
 	#  d data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
@@ -151,7 +157,7 @@ hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thi
 		dmu = mean( drs ) 
 		gmu = mean( grs ) 
 		
-		.selcoef <- ( dmu - gmu ) / MU 
+		.selcoef <- ( gmu - dmu ) / MU 
 		
 		pr0 <- sum( dnorm( drs , dmu, sigma, log=TRUE ) ) + sum( dnorm(grs, gmu, sigma, log=TRUE) )
 		
@@ -214,6 +220,7 @@ hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thi
 	f0 <- runMCMC(bs0, settings = list(iterations = iterations, thin = thin,  startValues = bs0$prior$sampler()))
 	i <- Sys.getpid() 
 	saveRDS( f0, file=paste0('a5f0_', i, '.rds' ) )
+# TODO output d & genotype indicator 
 	f0 
 }
 
@@ -415,6 +422,7 @@ hier_bayes_pairwiseLogistic_frequency <- function(s, d
 	f0 <- runMCMC(bs0, settings = list(iterations = iterations, thin = thin,  startValues = bs0$prior$sampler()))
 	i <- Sys.getpid() 
 	saveRDS( f0, file=paste0('hier_bayes_pairwiseLogistic_frequency', '_', i, '.rds' ) )
+# TODO include d in output, indicator for genotype 
 	f0 
 }
 
