@@ -83,7 +83,7 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 
 #' Hierarchical Bayesian inference of cluster-wise selection coefficients with a random effect corresponding to a dichotomous genotype
 #' 
-#' @param s data frame that describes each sample, must have columns: del_introduction, sample_time
+#' @param s data frame that describes each sample, must have columns: del_introduction, sample_time, genotype 
 #' @param MINT minimum sample time for including cluster 
 #' @param MAXT exclude samples after this date 
 #' @param MU sets time scale of process and generation time. Generation time is 1/MU years
@@ -99,11 +99,16 @@ hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thi
 #TODO min cluster size ^^
 	s <- s [ s$del_introduction %in% keep_lineages , ]
 	
-	#  d data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
+	#  make d:  data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
 	Xs <- split( s, s$del_introduction )
+	# majority rule for genotype
+	clust_genotypes <- sapply( Xs, function(x) {
+		tt = table(x$genotype)
+		names( tt[ which.max(tt) ] )[1] 
+	})
 	d = data.frame(
 		lineage = sapply( Xs, function(x) x$del_introduction[1] )
-		,genotype = sapply( Xs, function(x) x$genotype[1] )
+		,genotype =  clust_genotypes
 		,first_sample  = sapply( Xs, function(x) min( x$sample_time) )
 		, stringsAsFactors=FALSE
 	)
@@ -563,5 +568,51 @@ plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black'))
 	p = plot_grid( plotlist= list( p0 , p1 ), nrow =  2) # ggtitle( paste('sel coef', selcoef))
 	p$m = m 
 	list( p0, p1, p, m )
+}
+
+
+
+#' Compute cumulative proportion of samples descended from clusters originating within a specified time window
+#'
+#' @param s data frame with  del_introduction(character), sample_time(numeric)
+#' @param mint lower sample time bound. Clusters must have sample before this time
+#' @param maxt upper sample time bound. Clusters must have sample after this time
+#' @param res integer resolution of time axis
+#' @return list with 1) result with  columns: cumulative fraction of samples descended from new clusters, number descended from old clusters, number descended from new clusters 2) data with cluster subset 
+#' @export
+cluster_origin_comparison <- function(s, mint = decimal_date( as.Date('2020-08-01')) , maxt = Inf , res = 50 )
+{
+	if ( 'del_lineage' %in% colnames(s) & !('del_introduction' %in% colnames(s) ) )
+			s$del_introduction <- s$del_lineage
+	# filter missing
+	s <- s[with( s, !is.na(sample_time) & !is.na(del_introduction) ) , ]
+
+	# compute spans and make sure they cover period ; exclude others
+	s_clusts <- split( s, s$del_introduction )
+	clusts <- names( s_clusts )
+	clustspans <- sapply( s_clusts , function(ss){
+			range( ss$sample_time )
+	})# time range of cluster
+	colnames( clustspans ) <- clusts
+	newClusts <-  clusts[ clustspans[1,] >= mint & clustspans[2, ] <= maxt ]
+	s$isnew <- s$del_introduction %in% newClusts
+
+	# remove sample times outside of mint and maxt
+	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	rownames(s) <- NULL
+	s <- s[ order(s$sample_time ) , ]
+
+	ss <- split( s, s$isnew )
+
+	taxis <- seq( mint, max( s$sample_time ), length = res )
+	X = t( sapply( taxis , function(tt){
+			c( sum( ss[[1]]$sample_time <= tt ), sum(  ss[[2]]$sample_time <= tt ) )
+	}) )
+	colnames(X) <- names( ss )
+	pnew = X[,'TRUE'] / rowSums( X )
+
+
+	res = cbind( taxis, pnew, X )
+	list( result = res, data = s )
 }
 

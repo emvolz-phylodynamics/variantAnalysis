@@ -15,7 +15,7 @@ hier_bayes_exponentialGrowth_frequency(
 )
 }
 \arguments{
-\item{s}{data frame that describes each sample, must have columns: del_introduction, sample_time}
+\item{s}{data frame that describes each sample, must have columns: del_introduction, sample_time, genotype}
 
 \item{MINT}{minimum sample time for including cluster}
 
