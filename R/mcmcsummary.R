@@ -174,7 +174,7 @@ invisible( object )
 
 
 #' @export 
-hier_bayes_exponentialGrowth_frequency.summary2 <- function(f, d= NULL,  MU = 73, thin = 1, start = 1000)
+hier_bayes_exponentialGrowth_frequency.summary <- function(f, d= NULL,  MU = 73, thin = 1, start = 1000)
 {
 	library( BayesianTools )
 	library( ggplot2 )

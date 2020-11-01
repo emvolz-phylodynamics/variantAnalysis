@@ -29,7 +29,9 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 	s <- s[ s$del_introduction %in% keep ,  ]
 	
 	# remove sample times outside of mint and maxt 
-	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	s <- s[ s$sample_time >= mint   , ] #&  s$sample_time <= maxt
+	if ( nrow(s) < 100 ) 
+		stop('mint and maxt too restrictive' )
 	s <- s[ , c('del_introduction', 'sample_time', 'genotype') ] ## remove identifiers 
 	rownames(s) <- NULL 
 	# recompute clust spans 
@@ -87,16 +89,16 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 #' @param MINT minimum sample time for including cluster 
 #' @param MAXT exclude samples after this date 
 #' @param MU sets time scale of process and generation time. Generation time is 1/MU years
+#' @param minClusterSize minimum size for cluster to be included in analysis 
 #' @return Bayesian sampler output produced by BayesianTools::runMCMC
 #' @export 
-hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thin = 200 , ncpu = 4, MINT =  -Inf, MAXT = 2020.25, MU = 73)
+hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thin = 200 , ncpu = 4, MINT =  -Inf, MAXT = 2020.25, MU = 73, minClusterSize = 10)
 {
 	
 	library( BayesianTools )
 	s <- s[ s$sample_time > MINT  &  s$sample_time <= MAXT  , ] 
 	s <- s[ order( s$sample_time ) , ]
-	x = table( s$del_introduction ) ; x = x[ x >= 10]; keep_lineages <- names(x) 
-#TODO min cluster size ^^
+	x = table( s$del_introduction ) ; x = x[ x >= minClusterSize]; keep_lineages <- names(x) 
 	s <- s [ s$del_introduction %in% keep_lineages , ]
 	
 	#  make d:  data frame that describes each cluster, must have columns: lineage (matching del_introduction), first_sample (time of first sample in cluster), genotype ( 'wt' or 'mutant' )
@@ -225,7 +227,10 @@ hier_bayes_exponentialGrowth_frequency <- function(s,  iterations = 8000000, thi
 	f0 <- runMCMC(bs0, settings = list(iterations = iterations, thin = thin,  startValues = bs0$prior$sampler()))
 	i <- Sys.getpid() 
 	saveRDS( f0, file=paste0('a5f0_', i, '.rds' ) )
-# TODO output d & genotype indicator 
+	
+	f0$clusterdata <- d 
+	f0$data = s
+	f0$clust_genotypes = clust_genotypes
 	f0 
 }
 

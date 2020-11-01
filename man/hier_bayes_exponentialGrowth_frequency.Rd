@@ -11,7 +11,8 @@ hier_bayes_exponentialGrowth_frequency(
   ncpu = 4,
   MINT = -Inf,
   MAXT = 2020.25,
-  MU = 73
+  MU = 73,
+  minClusterSize = 10
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ hier_bayes_exponentialGrowth_frequency(
 \item{MAXT}{exclude samples after this date}
 
 \item{MU}{sets time scale of process and generation time. Generation time is 1/MU years}
+
+\item{minClusterSize}{minimum size for cluster to be included in analysis}
 }
 \value{
 Bayesian sampler output produced by BayesianTools::runMCMC
