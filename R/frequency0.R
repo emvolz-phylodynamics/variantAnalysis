@@ -621,3 +621,77 @@ cluster_origin_comparison <- function(s, mint = decimal_date( as.Date('2020-08-0
 	list( result = res, data = s )
 }
 
+
+
+#' Compute cumulative proportion of samples descended from clusters originating within a specified time window or uk lineage 
+#' 
+#' This returns a data frame with lieange log odds broken down by epi week 
+#'
+#' @param s data frame with  del_introduction(character), sample_time(numeric), and epi_week (integer)
+#' @param uk_lineage  optional character vector of uk_lineage
+#' @param mint lower sample time bound. Clusters must have sample before this time
+#' @param maxt upper sample time bound. Clusters must have sample after this time
+#' @return data frame with log odds of new lineages or uk_lineage 
+#' @export
+cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mint = decimal_date( as.Date('2020-07-01')) , maxt = Inf, detailed=TRUE  )
+{
+	if ( 'del_lineage' %in% colnames(s) & !('del_introduction' %in% colnames(s) ) )
+			s$del_introduction <- s$del_lineage
+	# filter missing
+	s <- s[with( s, !is.na(sample_time) & !is.na(del_introduction) ) , ]
+
+	# compute spans and make sure they cover period ; exclude others
+	s_clusts <- split( s, s$del_introduction )
+	clusts <- names( s_clusts )
+	clustspans <- sapply( s_clusts , function(ss){
+			range( ss$sample_time )
+	})# time range of cluster
+	colnames( clustspans ) <- clusts
+	newClusts <-  clusts[ clustspans[1,] >= mint & clustspans[2, ] <= maxt ]
+	s$isnew <- s$del_introduction %in% newClusts
+
+	# remove sample times outside of mint and maxt
+	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	rownames(s) <- NULL
+	s <- s[ order(s$sample_time ) , ]
+	
+	if (!is.null( uk_lineage) )
+		ss = split( s, s$uk_lineage==uk_lineage  )
+	else if ( !is.null( genotype ))
+		ss = split( s, s$genotype == genotype  )
+	else
+		ss <- split( s, s$isnew )
+	
+	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
+#~ browser() 
+	weights = sapply( weeks, function(w){
+		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		n <- n1 + n2 
+		if ( n1 == 0 ) 
+			return(0)
+		if ( n2 == 0 )
+			return(0) 
+		p = sum( ss[['TRUE']]$epi_week == w  )  / n
+		v = p * (1 - p) / n 
+		1 / sqrt( v )
+	})
+	weights = weights / median( weights )
+	logodds = sapply( weeks, function(w){
+		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		if ( n1 == 0 | n2 == 0 )
+			return(NA)
+		log( n1 )  - log(n2 )
+	})
+	
+	
+	#list( result=cbind(  weeks = weeks, weights = weights, logodds = logodds ) , data = s )
+	res = data.frame(  weeks = weeks, weights = weights, logodds = logodds )
+	if ( detailed) 
+		res = list(
+		  result = res 
+		  , data = s
+		)
+	return(res)
+}
