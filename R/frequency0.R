@@ -9,7 +9,7 @@ library( BayesianTools )
 #' @param r specifies generation time (1/r) when transforming to selection coefficients. Default 73 corresponds to five days.
 #' @return  list with matrix of selection coefficients for different clusters and a t.test for difference in 'mutant' selection coefficients
 #' @export 
-clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSize = 25 , r = 73 )
+clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSize = 25 , r = 73 , quasi=F)
 {
 	# filter missing
 	s <- s[with( s, !is.na(sample_time) & !is.na(del_introduction) & !is.na(genotype) ) , ]
@@ -32,7 +32,7 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 	s <- s[ s$sample_time >= mint   , ] #&  s$sample_time <= maxt
 	if ( nrow(s) < 100 ) 
 		stop('mint and maxt too restrictive' )
-	s <- s[ , c('del_introduction', 'sample_time', 'genotype') ] ## remove identifiers 
+	s <- s[ , colnames(s)%in%c('del_introduction', 'sample_time', 'genotype','weight') ] ## remove identifiers 
 	rownames(s) <- NULL 
 	# recompute clust spans 
 	s_clusts <- split( s, s$del_introduction )
@@ -51,16 +51,24 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 	s_genotype = split( s, s$genotype )
 	
 	# analysis 1, individual cluster level 
-	rs_ests <- sapply( clusts , function(cc){
+	ms <- list()
+	for(i in 1:length(clusts)){
+	  cc <- clusts[i]
 		ss = s_clusts[[ cc ]] 
 		ccg = ss$genotype[1] 
 		notccg = setdiff( c('wt', 'mutant') , ccg )
 		X <- rbind( ss , s_genotype[[ notccg ]] )
 		X <- X[ with(X, sample_time>=clustspans[1,cc] & sample_time <=clustspans[2,cc]) ,]
 		X$y <- X$genotype == ccg 
-		m = glm( y ~ sample_time , data = X, family = binomial(link='logit' ))
-		c( coef(m)[2] , confint( m ) [2, ]  )
-	})
+		if(quasi==F){
+		  m = glm( y ~ sample_time , data = X, family = binomial(link='logit' ))
+		}else{
+		  m = glm( y ~ sample_time , data = X, family = quasibinomial(link='logit' ),weight=weight)
+		}
+		# store to plot
+		ms[[i]] <- m
+	}
+	rs_ests <- sapply(ms,function(m) c( coef(m)[2] , tryCatch({confint(m)[2,]}, error = function(e) { return(c(NA,NA))})  ))
 	rs_ests_wt <- rs_ests[ , clust_genotypes == 'wt' ]
 	rs_ests_mutant <- rs_ests[ , clust_genotypes == 'mutant' ]
 	
@@ -78,6 +86,7 @@ clusterwise_logistic <- function(s, mint = 2020.20, maxt = 2020.35, minClusterSi
 		, data = s
 		, data_clusts  = s_clusts 
 		, clust_genotypes = clust_genotypes 
+		,	ms = ms
 	)
 }
 
