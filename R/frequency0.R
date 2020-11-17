@@ -704,3 +704,68 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 		)
 	return(res)
 }
+
+
+
+
+#' Simple log odds freqency plot for given variable. Does not partition by cluster. 
+#'
+#' If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id 
+#' 
+#' @parameter s data frame which must contain sample_time and 'variable' for each sequence
+#' @parameter variable Column of s which contains variable to split the data 
+#' @parameter value The value in conlumn 'variable' for which we will compute frequency 
+#' @paramter mint Minimum sample time to include
+#' @paramter maxt Max time to include
+#' @return data frame with frequency data. If detailed==TRUE, also returns data and a plot with loess regression line 
+#' @export 
+variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=FALSE  )
+{
+	library( lubridate ) 
+	# remove sample times outside of mint and maxt
+	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	rownames(s) <- NULL
+	s <- s[ order(s$sample_time ) , ]
+	
+	if ( !('epi_week' %in% colnames(s)))
+		s$epi_week <- floor( (s$sample_time-2020) / 7 ) + 1
+	
+	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
+	
+	ss <- split( s, s[[variable]]==value )
+	
+#~ browser() 
+	weights = sapply( weeks, function(w){
+		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		n <- n1 + n2 
+		if ( n1 == 0 ) 
+			return(0)
+		if ( n2 == 0 )
+			return(0) 
+		p = sum( ss[['TRUE']]$epi_week == w  )  / n
+		v = p * (1 - p) / n 
+		1 / sqrt( v )
+	})
+	weights = weights / median( weights )
+	logodds = sapply( weeks, function(w){
+		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		if ( n1 == 0 | n2 == 0 )
+			return(NA)
+		log( n1 )  - log(n2 )
+	})
+	
+	
+	#list( result=cbind(  weeks = weeks, weights = weights, logodds = logodds ) , data = s )
+	res = data.frame(  time = (7*weeks/365) + 2020, weeks = weeks, weights = weights, logodds = logodds )
+	if ( detailed) {
+		library( ggplot2 )
+		res = list(
+		  result = res 
+		  , data = s
+		  , plot =  ggplot(  aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights, weight=weights ) , data= res ) + geom_point ()  + theme_minimal() + theme( legend.pos='') + geom_smooth(method=stats::loess) + xlab('') + ggtitle( paste0('Frequency of ', variable, '=', value) ) #, method.args=list(span = 1) 
+		)
+	}
+	return(res)
+}

@@ -9,7 +9,8 @@ clusterwise_logistic(
   mint = 2020.2,
   maxt = 2020.35,
   minClusterSize = 25,
-  r = 73
+  r = 73,
+  quasi = F
 )
 }
 \arguments{
