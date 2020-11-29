@@ -23,7 +23,7 @@ compute_genotypes <- function(
 	a1 <- read.dna( algn_fn, format = 'fasta' ) 
 	
 	pos <- do.call( c, lapply( positions, function(x) x[1:3] ) )
-	p1 = trans(a1) 
+	p1 = trans(a1[, pos]) 
 	#apply( as.character( p1) , 2 , table )
 	
 	
