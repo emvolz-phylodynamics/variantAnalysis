@@ -728,6 +728,11 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 {
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
+	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
+	{
+		s$sample_time <- decimal_date( as.Date( ymd( md$sample_date ) )  )
+	}
+	stopifnot( is.numeric( s$sample_time ) )
 	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
 	rownames(s) <- NULL
 	s <- s[ order(s$sample_time ) , ]
@@ -741,12 +746,11 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 		s$weight <- s$weight / mean( s$weight ) 
 	
 	ss <- split( s, s[[variable]]==value )
-	
-#~ browser() 
+
 	weights = sapply( weeks, function(w){
 		if ( 'weight' %in% colnames(s) ) {
 			n1 <- sum( ss[['TRUE']]$weight[ ss[['TRUE']]$epi_week==w ]  )
-			n1 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
+			n2 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
 		} else{
 			n1 <- sum( ss[['TRUE']]$epi_week == w  )   
 			n2 = sum( ss[['FALSE']]$epi_week == w  )  
@@ -764,7 +768,7 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	logodds = sapply( weeks, function(w){
 		if ( 'weight' %in% colnames(s) ) {
 			n1 <- sum( ss[['TRUE']]$weight[ ss[['TRUE']]$epi_week==w ]  )
-			n1 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
+			n2 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
 		} else{
 			n1 <- sum( ss[['TRUE']]$epi_week == w  )   
 			n2 = sum( ss[['FALSE']]$epi_week == w  )  
@@ -787,3 +791,4 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	}
 	return(res)
 }
+
