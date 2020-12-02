@@ -485,7 +485,11 @@ cluster_sizes <- function(s, mint = 2020.20, maxt = 2020.35)
 		min( ss$sample_time )
 	})
 	names( clust_starts ) <- clusts 
-	clust_genotypes <- sapply( s_clusts, function(x) x$genotype[1] )
+	clust_genotypes <- sapply( s_clusts, function(x) { 
+		# majority rule 
+		tx = table( x$genotype )
+		names(tx)[which.max(tx)]
+	})
 	
 	s_genotype = split( s, s$genotype )
 	
@@ -710,7 +714,8 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 
 #' Simple log odds freqency plot for given variable. Does not partition by cluster. 
 #'
-#' If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id 
+#' If the column 'weight' is in the input data frame, this will use the values to weight each observation. 
+#' If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id. 
 #' 
 #' @parameter s data frame which must contain sample_time and 'variable' for each sequence
 #' @parameter variable Column of s which contains variable to split the data 
@@ -732,12 +737,20 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	
 	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
 	
+	if ( 'weight' %in% colnames(s))
+		s$weight <- s$weight / mean( s$weight ) 
+	
 	ss <- split( s, s[[variable]]==value )
 	
 #~ browser() 
 	weights = sapply( weeks, function(w){
-		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
-		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		if ( 'weight' %in% colnames(s) ) {
+			n1 <- sum( ss[['TRUE']]$weight[ ss[['TRUE']]$epi_week==w ]  )
+			n1 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
+		} else{
+			n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+			n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		}
 		n <- n1 + n2 
 		if ( n1 == 0 ) 
 			return(0)
@@ -749,8 +762,13 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	})
 	weights = weights / median( weights )
 	logodds = sapply( weeks, function(w){
-		n1 <- sum( ss[['TRUE']]$epi_week == w  )   
-		n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		if ( 'weight' %in% colnames(s) ) {
+			n1 <- sum( ss[['TRUE']]$weight[ ss[['TRUE']]$epi_week==w ]  )
+			n1 <- sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  )
+		} else{
+			n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+			n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		}
 		if ( n1 == 0 | n2 == 0 )
 			return(NA)
 		log( n1 )  - log(n2 )

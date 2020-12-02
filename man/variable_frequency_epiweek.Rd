@@ -17,5 +17,6 @@ variable_frequency_epiweek(
 data frame with frequency data. If detailed==TRUE, also returns data and a plot with loess regression line
 }
 \description{
-If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id
+If the column 'weight' is in the input data frame, this will use the values to weight each observation. 
+If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id.
 }
