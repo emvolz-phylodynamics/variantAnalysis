@@ -521,7 +521,7 @@ plot_cluster_sizes <- function(X, mincs = 2 ){
 #' @export 
 plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black')
 		  , g = 365 / 6.5
-		 , RD = seq( .8,1.5, length = 100) #hypothetical rep numbers for ancestral 
+		 , RD = seq( 1.1,1.5, length = 100) #hypothetical rep numbers for ancestral 
 		)
 { 
 	library( ggplot2 )
