@@ -519,7 +519,10 @@ plot_cluster_sizes <- function(X, mincs = 2 ){
 #' @param cols Colours for plotting 
 #' @param bw bin width for aggregating data 
 #' @export 
-plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black'))
+plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black')
+		  , g = 365 / 6.5
+		 , RD <- seq( .8,1.5, length = 100) #hypothetical rep numbers for ancestral 
+		)
 { 
 	library( ggplot2 )
 	library( lubridate ) 
@@ -532,8 +535,6 @@ plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black'))
 	m = glm( (genotype=='mutant') ~ sample_time, family = binomial(link='logit'),  data = s1  )
 	print( summary( m ))
 	rs = c( coef( m )[2] ,  confint( m ) [2, ]  )
-	RD <- seq( 2, 3.5, length = 3) #hypothetical rep numbers for ancestral 
-	g = 365 / 6.5
 	rD <- RD * g - g
 	#~ selcoef <- rs / rD 
 	selcoef <- (rs) %*% t( 1/rD )
@@ -585,7 +586,7 @@ plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black'))
 	p1 = ggplot( data= X , aes( x = date, y = n, fill = genotype)) + geom_bar( position = 'stack', stat='identity', colour = 'grey' , alpha=.5) + scale_fill_manual( values = .cols)  + xlab('') + ylab('Samples') + theme_classic() + theme( legend.position='top')
 	p = plot_grid( plotlist= list( p0 , p1 ), nrow =  2) # ggtitle( paste('sel coef', selcoef))
 	p$m = m 
-	list( p0, p1, p, m )
+	list( selcoef = selcoef , plot1=p0, plot2=p1, plot3=p, modelfit=m )
 }
 
 
