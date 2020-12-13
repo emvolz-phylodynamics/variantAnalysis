@@ -520,8 +520,10 @@ plot_cluster_sizes <- function(X, mincs = 2 ){
 #' @param bw bin width for aggregating data 
 #' @export 
 plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black')
-		  , g = 365 / 6.5
+		 , g = 365 / 6.5 # recovery rate 
 		 , RD = seq( 1.1,1.5, length = 100) #hypothetical rep numbers for ancestral 
+		 , gentime = 6.5/365 
+		 , timeScaleMethod = c( 'gentime', 'growth') 
 		)
 { 
 	library( ggplot2 )
@@ -534,13 +536,19 @@ plpg <- function( s1, bw = 1 , cols = c(ancestral='white', mutant='black')
 	
 	m = glm( (genotype=='mutant') ~ sample_time, family = binomial(link='logit'),  data = s1  )
 	print( summary( m ))
+	
+	timeScaleMethod = timeScaleMethod[1] 
 	rs = c( coef( m )[2] ,  confint( m ) [2, ]  )
-	rD <- RD * g - g
-	#~ selcoef <- rs / rD 
-	selcoef <- (rs) %*% t( 1/rD )
-	print(median( selcoef ))
-	print(range( selcoef ))
-	selcoef = c( median( selcoef ), range( selcoef ) )
+	if (timeScaleMethod=='growth') {
+		rD <- RD * g - g
+		#~ selcoef <- rs / rD 
+		selcoef <- (rs) %*% t( 1/rD )
+		print(median( selcoef ))
+		print(range( selcoef ))
+		selcoef = c( median( selcoef ), range( selcoef ) )
+	} else if ( timeScaleMethod=='gentime' ){
+		selcoef = rs * gentime 
+	}
 	
 	s1 <- s1[ !is.na( s1$sample_time ), ]
 	.cols = cols
