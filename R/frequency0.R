@@ -739,7 +739,7 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	# remove sample times outside of mint and maxt
 	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
 	{
-		s$sample_time <- decimal_date( as.Date( ymd( md$sample_date ) )  )
+		s$sample_time <- decimal_date( as.Date( ymd( s$sample_date ) )  )
 	}
 	stopifnot( is.numeric( s$sample_time ) )
 	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
