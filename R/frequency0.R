@@ -726,14 +726,15 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 #' If the column 'weight' is in the input data frame, this will use the values to weight each observation. 
 #' If computing for genotypes you will want to remove gaps and 'X' before passing to this function; also deduplicate by patient id. 
 #' 
-#' @parameter s data frame which must contain sample_time and 'variable' for each sequence
-#' @parameter variable Column of s which contains variable to split the data 
-#' @parameter value The value in conlumn 'variable' for which we will compute frequency 
-#' @paramter mint Minimum sample time to include
-#' @paramter maxt Max time to include
-#' @return data frame with frequency data. If detailed==TRUE, also returns data and a plot with loess regression line 
+#' @param s data frame which must contain sample_time and 'variable' for each sequence
+#' @param variable Column of s which contains variable to split the data 
+#' @param value The value in conlumn 'variable' for which we will compute frequency 
+#' @param mint Minimum sample time to include
+#' @param maxt Max time to include
+#' @param form formula passed to mgcv::gam for estimating frequencies 
+#' @return list with data, plots, and estimated frequencies 
 #' @export 
-variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=FALSE  )
+variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
 {
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
@@ -747,9 +748,11 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	s <- s[ order(s$sample_time ) , ]
 	
 	if ( !('epi_week' %in% colnames(s)))
-		s$epi_week <- floor( (s$sample_time-2020) / 7 ) + 1
+		s$epi_week <- lubridate::epiweek( s$sample_time )
 	
 	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
+	weekstarts = sapply( weeks, function(x) min( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
+	weekends = sapply( weeks, function(x) max( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
 	
 	if ( 'weight' %in% colnames(s))
 		s$weight <- s$weight / mean( s$weight ) 
@@ -787,17 +790,23 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 		log( n1 )  - log(n2 )
 	})
 	
+	library( mgcv ) 
+	.s1 <- s[ order( s$sample_time ) , ]
+	.s1 <- .s1[ .s1$sample_time >= (min(ss[['TRUE']]$sample_time)-1/365), ]
+	.s1$y <- .s1[[variable]]==value
+	m = mgcv::gam( form , family = binomial(link='logit') , data = .s1 )
+	.s1$estimated = predict( m )
+	estdf = data.frame( time = .s1$sample_time, estimated_frequency = .s1$estimated )
 	
-	#list( result=cbind(  weeks = weeks, weights = weights, logodds = logodds ) , data = s )
-	res = data.frame(  time = (7*weeks/365) + 2020, weeks = weeks, weights = weights, logodds = logodds )
+	res = data.frame(  time = weekends, weeks = weeks, weights = weights, logodds = logodds )
 	if ( detailed) {
 		library( ggplot2 )
 		res = list(
 		  result = res 
-		  , data = s
+		  , estimated =  estdf
+		  , data = .s1
 		  , plot =  ggplot(  aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights, weight=weights ) , data= res ) + geom_point ()  + theme_minimal() + theme( legend.pos='') + geom_smooth(method=stats::loess) + xlab('') + ggtitle( paste0('Frequency of ', variable, '=', value) ) #, method.args=list(span = 1) 
 		)
 	}
 	return(res)
 }
-

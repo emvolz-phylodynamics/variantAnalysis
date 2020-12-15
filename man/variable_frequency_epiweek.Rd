@@ -10,11 +10,25 @@ variable_frequency_epiweek(
   value = "mutant",
   mint = -Inf,
   maxt = Inf,
-  detailed = FALSE
+  detailed = TRUE,
+  form = y ~ s(sample_time, bs = "gp", k = 5)
 )
 }
+\arguments{
+\item{s}{data frame which must contain sample_time and 'variable' for each sequence}
+
+\item{variable}{Column of s which contains variable to split the data}
+
+\item{value}{The value in conlumn 'variable' for which we will compute frequency}
+
+\item{mint}{Minimum sample time to include}
+
+\item{maxt}{Max time to include}
+
+\item{form}{formula passed to mgcv::gam for estimating frequencies}
+}
 \value{
-data frame with frequency data. If detailed==TRUE, also returns data and a plot with loess regression line
+list with data, plots, and estimated frequencies
 }
 \description{
 If the column 'weight' is in the input data frame, this will use the values to weight each observation. 
