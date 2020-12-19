@@ -796,7 +796,26 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 	.s1$y <- .s1[[variable]]==value
 	m = mgcv::gam( form , family = binomial(link='logit') , data = .s1 )
 	.s1$estimated = predict( m )
-	estdf = data.frame( time = .s1$sample_time, estimated_frequency = .s1$estimated )
+	estdf = data.frame( time = .s1$sample_time, estimated_logodds = .s1$estimated )
+	estdf <- estdf[ !duplicated(estdf$time), ]
+	estdf <- estdf[ order( estdf$time ) , ]
+	estdf$epiweek = lubridate::epiweek( date_decimal( estdf$time ) )
+	week2bnds = t( sapply( weeks, function(w){
+		if ( 'weight' %in% colnames(s) ) {
+			n1 <- round( sum( ss[['TRUE']]$weight[ ss[['TRUE']]$epi_week==w ]  ) )
+			n2 <- round(  sum( ss[['FALSE']]$weight[ ss[['FALSE']]$epi_week==w ]  ) )
+		} else{
+			n1 <- sum( ss[['TRUE']]$epi_week == w  )   
+			n2 = sum( ss[['FALSE']]$epi_week == w  )  
+		}
+		lo= median( estdf[estdf$epiweek == w , ]$estimated_logodds ) 
+		f = exp( lo) / ( 1 + exp( lo ))
+		ub = qbinom( .975, size = n1 + n2, prob = f  )  / (n1+n2 )
+		lb = qbinom( .025, size = n1 + n2, prob = f  )  / (n1+n2 )
+		c( log(lb/(1-lb)), log(ub/(1-ub)) )
+	}))
+	estdf$lb = week2bnds[ match( estdf$epiweek, weeks), 1]
+	estdf$ub = week2bnds[ match( estdf$epiweek, weeks), 2]
 	
 	res = data.frame(  time = weekends, weeks = weeks, weights = weights, logodds = logodds )
 	if ( detailed) {
@@ -805,8 +824,86 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 		  result = res 
 		  , estimated =  estdf
 		  , data = .s1
-		  , plot =  ggplot(  aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights, weight=weights ) , data= res ) + geom_point ()  + theme_minimal() + theme( legend.pos='') + geom_smooth(method=stats::loess) + xlab('') + ggtitle( paste0('Frequency of ', variable, '=', value) ) #, method.args=list(span = 1) 
+#~ 		  , plot =  ggplot(  aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights, weight=weights ) , data= res ) + geom_point ()  + theme_minimal() + theme( legend.pos='') + geom_smooth(method=stats::loess) + xlab('') + ggtitle( paste0('Frequency of ', variable, '=', value) ) #, method.args=list(span = 1) 
+		  , plot =  ggplot()  + 
+			geom_point (  aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights, weight=weights ) , data= res)  + 
+			theme_minimal() + theme( legend.pos='') + 
+			geom_path( aes( x =   as.Date( date_decimal( time ) ), y = estimated_logodds), data = estdf , color = 'blue') + 
+			ggtitle( paste0('Frequency of ', variable, '=', value) ) 
 		)
 	}
 	return(res)
 }
+
+#' @export 
+variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
+{
+	library( lubridate ) 
+	# remove sample times outside of mint and maxt
+	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
+	{
+		s$sample_time <- decimal_date( as.Date( ymd( s$sample_date ) )  )
+	}
+	stopifnot( is.numeric( s$sample_time ) )
+	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
+	rownames(s) <- NULL
+	s <- s[ order(s$sample_time ) , ]
+	
+	if ( !('epi_week' %in% colnames(s)))
+		s$epi_week <- lubridate::epiweek( s$sample_time )
+	
+	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
+	weekstarts = sapply( weeks, function(x) min( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
+	weekends = sapply( weeks, function(x) max( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
+	
+	if ( 'weight' %in% colnames(s)){
+		s$weight <- s$weight / mean( s$weight ) 
+	} else{
+		s$weight <- 1
+	}
+	
+	ss <- split( s, s[[variable]]==value )
+	
+	library( mgcv ) 
+	.s1 <- s[ order( s$sample_time ) , ]
+	.s1 <- .s1[ .s1$sample_time >= (min(ss[['TRUE']]$sample_time)-1/365), ]
+	.s1$y <- .s1[[variable]]==value
+	m = mgcv::gam( form , family = binomial(link='logit') , data = .s1 )
+	.s1$estimated = predict( m )
+	estdf = data.frame( time = .s1$sample_time, estimated_logodds = .s1$estimated )
+	estdf <- estdf[ !duplicated(estdf$time), ]
+	estdf <- estdf[ order( estdf$time ) , ]
+	estdf$epiweek = lubridate::epiweek( date_decimal( estdf$time ) )
+	estdf <- cbind( estdf, t( sapply( 1:nrow(estdf), function(k){
+		.s2 <- .s1[ .s1$sample_time == estdf$time[k] , ]
+		n <- nrow( .s2 )
+		lo= estdf$estimated_logodds[k] 
+		f = exp( lo) / ( 1 + exp( lo ))
+		ub = qbinom( .975, size = n, prob = f  )  / n
+		lb = qbinom( .025, size = n, prob = f  )  /n
+		n1 <- sum( .s2[[variable]]==value)
+		n2 <- n - n1 
+		ef = n1 / n 
+		c(lb= log(lb/(1-lb)), ub = log(ub/(1-ub)) , n = n, weights = f*(1-f)/n, logodds = log(ef / ( 1 - ef )) )
+	})) )
+	
+	#, weight=weights
+	pl = ggplot() + 
+		geom_point( aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights ),  data= estdf)  + 
+		theme_minimal() +
+		theme( legend.pos='' ) +
+		xlab('') + 
+		ggtitle( paste0('Frequency of ', variable, '=', value) ) + 
+		geom_path( aes(x=as.Date(date_decimal( time )), y=estimated_logodds), data = estdf, color = 'blue' , size = 1) + 
+		geom_ribbon( aes(x = as.Date(date_decimal( time )), ymin = lb, ymax = ub ), data = estdf , alpha = .25 )
+	if ( detailed) {
+		library( ggplot2 )
+		res = list(
+		  result = estdf 
+		  , data = .s1
+		  , plot =  pl
+		)
+	}
+	return(res)
+}
+
