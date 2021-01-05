@@ -124,3 +124,116 @@ sample_lineage <- function(
 	 , tables = Z
 	)
 }
+
+
+
+#' Matched sample by time (week) and UTLA
+#'
+#' @param csids central_sample_id to be matched 
+#' @param lineage If not NULL, sample will only include this lineage 
+#' @param not_lineage The sample will *not* include this lineage
+#' @param nreps replicates
+#' @param n_multiplier Optionally can draw multiple (integer) matches per element in csids 
+#' @param deduplicate not implemented 
+#' @export 
+matched_sample <- function( 
+	csids 
+	 , lineage = NULL
+	 , not_lineage = 'B.1.1.7'
+	 , nreps = 1 
+	 , n_multiplier = 1
+	 , deduplicate = FALSE 
+) {
+stopifnot( !deduplicate ) #not implemented
+
+#~ csids <- read.tree('sampler1_B.1.1.7_2021-01-04_n=500-deduped.nwk')[[1]]$tip.label 
+#~ lineage = NULL
+#~ not_lineage = 'B.1.1.7'
+#~ weightsfn = '/cephfs/covid/bham/climb-covid19-volze/b0-weightsdf-2021-01-04.csv'
+#~ nreps = 100 
+#~ n_multiplier = 1
+
+	library( lubridate )
+	library( ape ) 
+	library( glue )
+		
+	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
+	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
+	civmd$sample_date <- as.Date( civmd$sample_date )
+	civmd$sample_time <- decimal_date( civmd$sample_date ) 
+	
+	# load majora  '../latest/majora.20201204.metadata.matched.tsv' 
+	jdf <- read.csv( list.files(  '../latest/' , patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
+	, stringsAs=FALSE, sep = '\t' ) 
+	
+	# combine
+	s <- merge( civmd, jdf[ , c('central_sample_id', 'adm2') ], by = 'central_sample_id' )
+	
+	# exclude p1 
+	lhls <- c( 'MILK', 'ALDP', 'QEUH', 'CAMC')
+	s$lighthouse = FALSE
+	for (lh in lhls ){
+		s$lighthouse[ grepl(s$central_sample_id, patt = lh) ] <- TRUE
+	}
+	s <- s [ s$lighthouse , ]
+	s$epiweek <- epiweek(  s$sample_date )
+	s$year <- year ( s$sample_date )
+
+	# load tree and deduplicate 
+	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
+	tr1 <- keep.tip( tr0, s$central_sample_id )
+	
+	#~ 	StatMatch package, NND.hotdeck
+	## find controls 
+	
+	### filter lineage 
+	s <- s[ , c('year' , 'epiweek', 'adm2', 'central_sample_id', 'lineage') ]
+	s <- na.omit( s) 
+	s$key <- with( s, paste( sep = '.' , year, epiweek, adm2 ) )
+	srec <- s[ s$central_sample_id %in% csids , ] 
+	sdon <- s[ !( s$central_sample_id %in% csids )  &  (s$lineage!=not_lineage) , ] 
+	
+	.sample <- function()
+	{
+		csid_control = do.call(c,  lapply( srec$key , function (key ){
+			.s <- sdon[ sdon$key == key , ]
+			n <- min( nrow( .s ) , n_multiplier ) 
+			if ( n == 0 )
+				return( NA )
+			sample ( .s$central_sample_id, size = n , replace=FALSE )
+		}) )
+		csid_control <- na.omit( csid_control )
+		csid_control
+	}
+	
+	
+	# sample over reps, ns; 
+	{
+		X = do.call( rbind, lapply(1:nreps, function(k){
+			csids_control = .sample( )
+			y = data.frame( central_sample_id = csids_control, replicate = k , sample_size = length( csids_control) )
+			y
+		}))
+		write.csv( X, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
+	}
+	#make tres
+	{
+		Xs <- split( X, X$replicate )
+		tres <- lapply( Xs, function(y){
+			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
+		})
+		class( tres ) <- 'multiPhylo' 
+		write.tree( tres, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
+	}
+	
+	list(
+	 trees = tres 
+	 , tables = X
+	)
+}
+
+
+
+
