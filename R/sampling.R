@@ -15,8 +15,8 @@
 #' @param prop_stratified proportion of sample to reserve for stratified sampling 
 #' @param deduplicate if TRUE, duplicate samples will be removed 
 #' @export 
-sample_lineage <- function( 
-	lineage = 'B.1.1.7' 
+sample_lineage <- function( root_dir = '..' ## '~/../climb-covid19-volze'
+	 , lineage = 'B.1.1.7' 
 	 , weightsfn = '/cephfs/covid/bham/climb-covid19-volze/b0-weightsdf-2021-01-04.csv'
 	 , mindate = as.Date( '2020-10-15' ) 
 	 , maxdate = as.Date( Sys.Date() - 12 )
@@ -35,7 +35,7 @@ sample_lineage <- function(
 	wdf = na.omit( read.csv( weightsfn , stringsAs=FALSE )  ) 
 
 
-	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	civetfn =  list.files(  paste0(root_dir, '/phylolatest/civet/' ), patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
 	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
 	civmd$sample_date <- as.Date( civmd$sample_date )
