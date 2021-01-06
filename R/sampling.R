@@ -15,7 +15,7 @@
 #' @param prop_stratified proportion of sample to reserve for stratified sampling 
 #' @param deduplicate if TRUE, duplicate samples will be removed 
 #' @export 
-sample_lineage <- function( root_dir = '..' ## '~/../climb-covid19-volze'
+sample_lineage <- function( root_dir = '..' ## '/cephfs/covid/bham/climb-covid19-volze'
 	 , lineage = 'B.1.1.7' 
 	 , weightsfn = '/cephfs/covid/bham/climb-covid19-volze/b0-weightsdf-2021-01-04.csv'
 	 , mindate = as.Date( '2020-10-15' ) 
@@ -61,10 +61,12 @@ sample_lineage <- function( root_dir = '..' ## '~/../climb-covid19-volze'
 	s$epiweek <- epiweek(  s$sample_date )
 
 	# load tree and deduplicate 
-	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0 = read.tree( list.files( paste0(root_dir, '/phylolatest/trees'), patt = '.*newick', full=T ))
 	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
 	tr1 <- keep.tip( tr0, s$central_sample_id )
 
+	
+	# t1 = Sys.time()
 	if ( deduplicate )
 	{
 		if ( Ntip (tr1) > 6e3 ){
@@ -80,6 +82,10 @@ sample_lineage <- function( root_dir = '..' ## '~/../climb-covid19-volze'
 		s <- s[ order( s$sample_time ) , ]
 		.s <- s[ !duplicated( s$cluster ), ]
 	}
+	# t2 = Sys.time()
+	# t2-t1
+	
+	
 
 	# main sampling func
 	.sample <- function( n ) 
@@ -137,14 +143,15 @@ sample_lineage <- function( root_dir = '..' ## '~/../climb-covid19-volze'
 #' @param deduplicate not implemented 
 #' @export 
 matched_sample <- function( 
-	csids 
+  root_dir = '..' ## '/cephfs/covid/bham/climb-covid19-volze'
+	, csids 
 	 , lineage = NULL
 	 , not_lineage = 'B.1.1.7'
 	 , nreps = 1 
 	 , n_multiplier = 1
 	 , deduplicate = FALSE 
 ) {
-stopifnot( !deduplicate ) #not implemented
+  stopifnot( !deduplicate ) #not implemented
 
 #~ csids <- read.tree('sampler1_B.1.1.7_2021-01-04_n=500-deduped.nwk')[[1]]$tip.label 
 #~ lineage = NULL
@@ -157,14 +164,14 @@ stopifnot( !deduplicate ) #not implemented
 	library( ape ) 
 	library( glue )
 		
-	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	civetfn =  list.files( paste0(root_dir, '/phylolatest/civet/') , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
 	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
 	civmd$sample_date <- as.Date( civmd$sample_date )
 	civmd$sample_time <- decimal_date( civmd$sample_date ) 
 	
 	# load majora  '../latest/majora.20201204.metadata.matched.tsv' 
-	jdf <- read.csv( list.files(  '../latest/' , patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
+	jdf <- read.csv( list.files( paste0(root_dir, '../latest/' ), patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
 	, stringsAs=FALSE, sep = '\t' ) 
 	
 	# combine
@@ -181,7 +188,7 @@ stopifnot( !deduplicate ) #not implemented
 	s$year <- year ( s$sample_date )
 
 	# load tree and deduplicate 
-	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0 = read.tree( list.files( paste0(root_dir,'/phylolatest/trees'), patt = '.*newick', full=T ))
 	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
 	tr1 <- keep.tip( tr0, s$central_sample_id )
 	
