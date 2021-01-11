@@ -16,6 +16,7 @@
 #' @param deduplicate if TRUE, duplicate samples will be removed 
 #' @export 
 sample_lineage <- function( root_dir = '..' ## '/cephfs/covid/bham/climb-covid19-volze'
+	 , regenerate_ML_tree = F
 	 , lineage = 'B.1.1.7' 
 	 , weightsfn = '/cephfs/covid/bham/climb-covid19-volze/b0-weightsdf-2021-01-04.csv'
 	 , mindate = as.Date( '2020-10-15' ) 
@@ -109,25 +110,44 @@ sample_lineage <- function( root_dir = '..' ## '/cephfs/covid/bham/climb-covid19
 	# sample over reps, ns; 
 	Z <- list() 
 	for ( n in ns ){
-		X = do.call( rbind, lapply(1:nreps, function(k){
-			y = data.frame( central_sample_id = .sample( n ), replicate = k , sample_size = n )
-		}))
-		Z[[ as.character(n) ]] <- X
-		write.csv( X, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.csv')  )
-	}
+	  X = do.call( rbind, lapply(1:nreps, function(k){
+	    y = data.frame( central_sample_id = .sample( n ), replicate = k , sample_size = n )
+	  }))
+	  Z[[ as.character(n) ]] <- X
+	  write.csv( X, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.csv')  )
+	} 
+	
+	
+	
 	#make tres
+	# n.b. Z[[1]] has length nreps
+	
+	if(regenerate_ML_tree) {
+	  # algn_fn <- 	list.files(  paste0(root_dir, '/phylolatest/civet/' ), patt = 'cog_global_[0-9\\-]+_alignment.fasta', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	  # t0_readalgn = Sys.time()
+	  # algn <- read.dna(algn_fn, format = 'fasta' ) 
+	  # t1_readalgn = Sys.time()
+	  # 
+	  # t1_readalgn-t0_readalgn
+	}
+	
+	
+	
 	for (X in Z ){
-		Xs <- split( X, X$replicate )
-		tres <- lapply( Xs, function(y){
-			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
-		})
-		class( tres ) <- 'multiPhylo' 
-		write.tree( tres, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.nwk')  )
+	  if(regenerate_ML_tree) {
+  } else {
+	    
+	    Xs <- split( X, X$replicate )
+	    tres <- lapply( Xs, function(y){
+	      keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
+	    })
+	    class( tres ) <- 'multiPhylo' 
+	    write.tree( tres, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.nwk')  )}
 	}
 	
 	list(
-	 trees = tres 
-	 , tables = Z
+	  trees = tres 
+	  , tables = Z
 	)
 }
 
