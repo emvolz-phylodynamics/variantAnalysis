@@ -191,7 +191,7 @@ matched_sample <- function(
 	civmd$sample_time <- decimal_date( civmd$sample_date ) 
 	
 	# load majora  '../latest/majora.20201204.metadata.matched.tsv' 
-	jdf <- read.csv( list.files( paste0(root_dir, '../latest/' ), patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
+	jdf <- read.csv( list.files( paste0(root_dir, '/latest/' ), patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
 	, stringsAs=FALSE, sep = '\t' ) 
 	
 	# combine
@@ -243,7 +243,7 @@ matched_sample <- function(
 			y = data.frame( central_sample_id = csids_control, replicate = k , sample_size = length( csids_control) )
 			y
 		}))
-		write.csv( X, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
+		write.csv( X, file = glue('{lineage}_matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
 	}
 	#make tres
 	{
@@ -252,7 +252,7 @@ matched_sample <- function(
 			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
 		})
 		class( tres ) <- 'multiPhylo' 
-		write.tree( tres, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
+		write.tree( tres, file = glue('{lineage}_matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
 	}
 	
 	list(
