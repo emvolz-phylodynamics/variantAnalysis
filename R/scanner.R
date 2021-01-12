@@ -44,12 +44,12 @@ scanner_logistic_growth_rate <- function(min_descendants = 50 , max_descendants 
 	# sample time 
 	sts <- decimal_date ( as.Date( amd$sample_date[ match( tre$tip.label, amd$sequence_name ) ] ) ) 
 	names(sts) <- tre$tip.label 
-	
 	todrop <- names(sts) [ sts < min_time | sts > max_time ]
 	tre <- drop.tip( tre, todrop )
 	sts <- sts [ tre$tip.label ]
-	amd <- amd [ match( amd$sequence_name, tre$tip.label ) , ]
-
+	amd <- amd [ match( tre$tip.label, amd$sequence_name ) , ]
+	amd <- amd[ !is.na( amd$sequence_name ) , ]
+	
 	# data structures to quickly look up tree data 
 	# copied/adapted from treestructure 
 	{
