@@ -7,13 +7,16 @@
 #' @param min_date Only include samples after this data 
 #' @param max_date Only include samples before and including this date
 #' @param ncpu number cpu for multicore ops 
+#' @param path_to_data Path to data with COG tree and COG tree metadata 
 #' @export 
-scanner_logistic_growth_rate <- function(min_descendants = 50 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8)
+scanner_logistic_growth_rate <- function(min_descendants = 50 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8
+ , path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/'
+ )
 {
-	library( treeio ) 
+	#library( treeio ) 
 	library( ape ) 
-	library( variantAnalysis )
 	library( lubridate )
+	library( glue ) 
 	
 	max_time <- Inf 
 	if ( !is.null( max_date )){
@@ -27,9 +30,9 @@ scanner_logistic_growth_rate <- function(min_descendants = 50 , max_descendants 
 		min_time <- decimal_date( min_date )
 	
 	# play data 
-	tre = read.tree(list.files(  '../phylolatest/trees' , patt = 'cog_global_.*_tree.newick', full.names=TRUE) )
+	tre = read.tree(list.files(  paste0(path_to_data, '/trees') , patt = 'cog_global_.*_tree.newick', full.names=TRUE) )
 	# load coguk algn md 
-	amd <- read.csv( list.files(  '../phylolatest/alignments/' , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
+	amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
 	  , stringsAs=FALSE )
 	amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
 
@@ -184,8 +187,11 @@ scanner_logistic_growth_rate <- function(min_descendants = 50 , max_descendants 
 			X
 		}, mc.cores = ncpu )
 	)
-
-	saveRDS( Y , file=glue( 'logisticGrowthStat-{max_date}.rds' )  )
-	write.csv( Y , file=glue( 'logisticGrowthStat-{max_date}.csv' ) , quote=FALSE, row.names=FALSE )
+	
+	ofn1 = glue( 'logisticGrowthStat-{max_date}.rds' )
+	ofn2 = glue( 'logisticGrowthStat-{max_date}.csv' )
+	saveRDS( Y , file=ofn1   )
+	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
+	cat ( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly. \n'  ) )
 	invisible(Y) 
 }

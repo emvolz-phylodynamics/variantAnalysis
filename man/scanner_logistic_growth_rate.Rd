@@ -9,7 +9,8 @@ scanner_logistic_growth_rate(
   max_descendants = 20000,
   min_date = NULL,
   max_date = NULL,
-  ncpu = 8
+  ncpu = 8,
+  path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/"
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ scanner_logistic_growth_rate(
 \item{max_date}{Only include samples before and including this date}
 
 \item{ncpu}{number cpu for multicore ops}
+
+\item{path_to_data}{Path to data with COG tree and COG tree metadata}
 }
 \description{
 Only counts pillar 1 data; comparison sample is matched by time and adm2
