@@ -218,13 +218,12 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 	
 	# tree data 
 	tre = read.tree(list.files(  paste0(path_to_data, '/trees') , patt = 'cog_global_.*_tree.newick', full.names=TRUE) )
-	ndel <- node.depth.edgelength( tre ) 
 	
 	# load coguk algn md 
 	amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
 	  , stringsAs=FALSE )
 	amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
-
+	
 	# exclude global 
 	tre = keep.tip( tre, tre$tip.label[ tre$tip %in% amd$sequence_name[ amd$country=='UK' ] ]) 
 	# exclude p1 
@@ -232,7 +231,7 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 	lhpatt = paste( lhls, collapse = '|' )
 	tre = keep.tip(tre,  tre$tip.label[ grepl( tre$tip.label, patt = lhpatt ) ] ) 
 	amd <- amd [ amd$sequence_name %in% tre$tip.label , ]
-
+	
 	# sample time 
 	sts <- decimal_date ( as.Date( amd$sample_date[ match( tre$tip.label, amd$sequence_name ) ] ) ) 
 	names(sts) <- tre$tip.label 
@@ -241,6 +240,9 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 	sts <- sts [ tre$tip.label ]
 	amd <- amd [ match( tre$tip.label, amd$sequence_name ) , ]
 	amd <- amd[ !is.na( amd$sequence_name ) , ]
+	
+	# root to tip 
+	ndel <- node.depth.edgelength( tre ) 
 	
 	# data structures to quickly look up tree data 
 	# copied/adapted from treestructure 
@@ -355,12 +357,12 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 	.clock_outlier_stat <- function(u)
 	{
 		a = .get_comparator_ancestor(u)
-		if ( !is.na( a ))
+		if ( is.na( a ))
 			return( NA ) 
 		
 		iu = descendantTips[[u]]
 		tu = tre$tip.label [ iu ]
-		ia = setdiff( descendentTips[[a]], iu )
+		ia = setdiff( descendantTips[[a]], iu )
 		ta = tre$tip.label [ ia ]
 		sta = sts[ ta ]
 		stu = descsts [[ u ]]
@@ -370,9 +372,7 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 		m = lm ( ndela ~ sta ) 
 		r2 = summary( m )$r.squared
 		oosp = predict(m, newdata =  data.frame(sta = unname( stu )) )  -  ndelu
-		ps = 1-pnorm( abs( oosp ) , mean = 0 , sd = sqrt( r2 ))
-		#oosr2 = mean( (  - ndelu )^2)
-		log( median( ps ) ) 
+		mean( oosp^2) / mean( (predict(m) - ndela )^2 )
 	}
 	
 	# main 
@@ -397,7 +397,7 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 			 , stringsAsFactors=FALSE
 			)
 			
-			cat( paste( Sys.time() , u, X$cluster_size, X$logistic_growth_rate , '\n' ))
+			cat( paste( Sys.time() , u, X$cluster_size, X$logistic_growth_rate, X$clock_outlier , '\n' ))
 			X
 		}, mc.cores = ncpu )
 	)
@@ -406,6 +406,6 @@ scanner1 <- function(min_descendants = 50 , max_descendants = 20e3, min_date = N
 	ofn2 = glue( 'scanner1-{max_date}.csv' )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
-	cat ( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly. \n'  ) )
+	cat ( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly.\n \n'  ) )
 	invisible(Y) 
 }
