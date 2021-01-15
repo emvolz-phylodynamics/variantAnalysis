@@ -39,6 +39,8 @@ scanner <- function(treenexfn = NULL, min_descendants = 30 , max_descendants = 2
 	} else{
 		library( treeio ) 
 		trd = read.beast( treenexfn )
+		#saveRDS( trd, file = 'trd.rds' )
+		#trd = readRDS( 'trd.rds' )
 		tre = get.tree( trd )
 		nodedata = as.data.frame( get.data( trd ) )
 		rownames( nodedata ) <- nodedata$node
