@@ -7,6 +7,6 @@ Author: Erik Volz
 Maintainer: Erik Volz <e.volz@imperial.ac.uk>
 Description: -skygrowth comparison between clusters -identify recurrent mutations & quantify offspring beneath mixed nodes -frequency analysis 
 Depends: ape,lubridate,BayesianTools,mgcv,glue
-Suggests: sarscov2,ggforce,ggplot2,coda
+Suggests: sarscov2,ggforce,ggplot2,coda,treeio
 License: GPL
 RoxygenNote: 7.1.0

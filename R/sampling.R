@@ -24,7 +24,7 @@ sample_lineage <- function(
 	 , ns = c( 250, 500, 750, 1000 )
 	 , prop_stratified = .25
 	 , deduplicate = TRUE 
-) {
+){
 	library( lubridate )
 	library( ape ) 
 	library( glue )
