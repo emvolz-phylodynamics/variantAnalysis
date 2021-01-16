@@ -11,11 +11,12 @@ scanner(
   min_date = NULL,
   max_date = NULL,
   ncpu = 8,
-  path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/"
+  path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/",
+  include_pillar1 = FALSE
 )
 }
 \arguments{
-\item{treenexfn}{File name of tree with metadata in node labels}
+\item{treenexfn}{File name of tree with metadata in node labels; if NULL, will instead use latest tree found in path_to_data}
 
 \item{min_descendants}{Clade must have at least this many tips}
 
@@ -28,6 +29,8 @@ scanner(
 \item{ncpu}{number cpu for multicore ops}
 
 \item{path_to_data}{Path to data with COG tree and COG tree metadata}
+
+\item{include_pillar1}{if TRUE (default FALSE), will include Pillar 1 samples when computing stats}
 }
 \description{
 Computes a logistic growth rate and a statistic for outlying values in a molecular clock (root to tip regression).
