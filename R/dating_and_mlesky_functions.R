@@ -12,10 +12,10 @@ datetree <- function(mltr, civmd, meanrate)
 
 bootrep <- function(mltr, civmd = civmd, meanrate = meanrate, taxis = taxis, ...)
 {
-  td = datetree( mltr , civmd = civmd, meanrate = meanrate, ... ) 
+  td = datetree( mltr , civmd = civmd, meanrate = meanrate ) 
   res = diff( range( epiweek( date_decimal( td$sts )  )  )  ) + 1
   res <- res * 2
-  sg = mlskygrid( td, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = td$sts , res = 12, ncpu = 6)
+  sg = mlskygrid( td, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = td$sts , res = res, ncpu = 6, NeStartTimeBeforePresent = 0.25)
   res = with( sg, approx( time, ne, rule = 1, xout = taxis )$y )
   print( res ) 
   res 
@@ -113,7 +113,7 @@ running_IQ_tree_slurm <- function(Xs, lineage) {
 #' #'
 #' @param trefn main lineage to plot
 #' @param matchedfn comparison lineage to plot (can be matched or unmatched)
-dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
+dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001,   taxis = decimal_date( seq( as.Date( '2020-10-15') , as.Date('2021-01-03')  , by = 1) )) {
   
   
   
@@ -130,14 +130,11 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
   mtres = read.tree( matchedfn )
   
 
-  # put results on common time axis 
-  taxis <- decimal_date( seq( as.Date( '2020-10-15') , as.Date('2020-12-18')  , by = 1) )
+
   
   # metadata 
   civetfn =  list.files(  '/cephfs/covid/bham/climb-covid19-volze/phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
   civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
-  
-  
   civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
   civmd$sample_date <- as.Date( civmd$sample_date )
   civmd$sample_time <- decimal_date( civmd$sample_date ) 
@@ -147,7 +144,7 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
   mtres = lapply(mtres, function(tr) ape::drop.tip(tr, tr$tip.label[!tr$tip.label %in% civmd$central_sample_id]))
   
 
-  nes <- tryCatch( {  parallel::mclapply( tres, bootrep, civmd = civmd, meanrate = meanrate, taxis = taxis, mc.cores =  3 ) },
+  nes <- tryCatch( {  parallel::mclapply( tres, bootrep, civmd = civmd, meanrate = meanrate, taxis = taxis, mc.cores =  ncpu ) },
                    error = function(e){
                      print(nes)
                      stop(' \n bootrep didnt work... \n')
@@ -158,7 +155,7 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
   
   N <- do.call( cbind, nes ) 
   
-  m_nes <- tryCatch( {  parallel::mclapply( mtres, bootrep, civmd = civmd, meanrate = meanrate,  taxis = taxis, mc.cores =  3 ) },
+  m_nes <- tryCatch( {  parallel::mclapply( mtres, bootrep, civmd = civmd, meanrate = meanrate,  taxis = taxis, mc.cores =  ncpu ) },
                      error = function(e){
                        print(mtres)
                        stop(' \n bootrep didnt work... \n')
@@ -174,9 +171,9 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
   
 
   
-  print(
-    quantile( apply( N, MAR=2, FUN = function(x) median( exp(diff(log(na.omit(x)))) )^6.5  ), c(.025, .5, .975)) 
-  )
+  # print(
+  #   quantile( apply( N, MAR=2, FUN = function(x) median( exp(diff(log(na.omit(x)))) )^6.5  ), c(.025, .5, .975)) 
+  # )
 
   
   #plot results 
@@ -190,42 +187,42 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001) {
 #   better plots are found in N501_analyses/analyse_results_two_lineages_after_bootstrapping_and_mlesky.R
   
   
-  tN = readRDS( ofn )
-  # tN = readRDS( 'regenerated_ML_trees_d1-tN-meanrate0.001.rds' )
-  attach( tN )
-  q_ne = t(apply( ne, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ))
-  q_mane  = t(apply( mane, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ))
-  
-  gr =  apply( ne, 2, function(x) c(exp( diff(log(x)) )^6.5, NA)  ) 
-  magr =  apply( mane, 2, function(x) c(exp( diff(log(x)) )^6.5, NA)  ) 
-  
-  q_gr = t( apply( gr, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
-  q_magr  = t( apply( magr, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
-  
-  colnames( q_ne ) = colnames( q_mane ) = c( 'y', 'ylb', 'yub' )
-  pldf0 = as.data.frame( q_ne ) ; pldf0$lineage = lineage_main; pldf0$time = time 
-  pldf1 = as.data.frame( q_mane ); pldf1$lineage = lineage_matched; pldf1$time = time 
-  pldf = rbind( pldf0, pldf1 )
-  
-  p0 = ggplot( aes(x = as.Date( date_decimal( time)), y = y, colour = lineage, fill = lineage , ymin = ylb, ymax = yub ) , data = pldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Effective population size' ) + theme_minimal() + theme(legend.position='none')
-  
-  colnames( q_gr ) = colnames( q_magr ) = c( 'y', 'ylb', 'yub' )
-  gpldf0 = as.data.frame( q_gr ) ; gpldf0$lineage = lineage_main; gpldf0$time = time 
-  gpldf1 = as.data.frame( q_magr ); gpldf1$lineage = lineage_matched; gpldf1$time = time 
-  gpldf = rbind( gpldf0, gpldf1 )
-  p1 =  ggplot( aes(x = as.Date( date_decimal( time)), y = y, colour = lineage, fill = lineage , ymin = ylb, ymax = yub ) , data = gpldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Reproduction number' ) + theme_minimal() + scale_y_log10() + geom_hline( aes( yintercept=1), lty = 2 )  + theme(legend.position='top')
-  
-  Rratio = gr / magr 
-  qRr =  t( apply( Rratio, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
-  colnames( qRr ) =  c( 'y', 'ylb', 'yub' )
-  Rrpldf = as.data.frame( qRr ); Rrpldf$time = time 
-  p2 = ggplot( aes(x = as.Date( date_decimal( time)), y = y, ymin = ylb, ymax = yub ) , data = Rrpldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Ratio of reproduction numbers' ) + theme_minimal() + scale_y_log10() + geom_hline( aes( yintercept=1), lty = 2 ) 
-  
-  library( cowplot )
-  P0 = plot_grid( plotlist = list( p0, p1, p2 ), nrow = 1 )
-  # ggsave( plot = P0, file = 'd1.png', width = 8, height = 3 )
-  ggsave( plot = P0, file = paste0('d1_', lineage_main, '_', lineage_matched, dedup, '.pdf'), width = 8, height = 3 )
-  # ggsave( plot = P0, file = 'd1_regen.pdf', width = 8, height = 3 )
+  # tN = readRDS( ofn )
+  # # tN = readRDS( 'regenerated_ML_trees_d1-tN-meanrate0.001.rds' )
+  # attach( tN )
+  # q_ne = t(apply( ne, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ))
+  # q_mane  = t(apply( mane, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ))
+  # 
+  # gr =  apply( ne, 2, function(x) c(exp( diff(log(x)) )^6.5, NA)  ) 
+  # magr =  apply( mane, 2, function(x) c(exp( diff(log(x)) )^6.5, NA)  ) 
+  # 
+  # q_gr = t( apply( gr, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
+  # q_magr  = t( apply( magr, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
+  # 
+  # colnames( q_ne ) = colnames( q_mane ) = c( 'y', 'ylb', 'yub' )
+  # pldf0 = as.data.frame( q_ne ) ; pldf0$lineage = lineage_main; pldf0$time = time 
+  # pldf1 = as.data.frame( q_mane ); pldf1$lineage = lineage_matched; pldf1$time = time 
+  # pldf = rbind( pldf0, pldf1 )
+  # 
+  # p0 = ggplot( aes(x = as.Date( date_decimal( time)), y = y, colour = lineage, fill = lineage , ymin = ylb, ymax = yub ) , data = pldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Effective population size' ) + theme_minimal() + theme(legend.position='none')
+  # 
+  # colnames( q_gr ) = colnames( q_magr ) = c( 'y', 'ylb', 'yub' )
+  # gpldf0 = as.data.frame( q_gr ) ; gpldf0$lineage = lineage_main; gpldf0$time = time 
+  # gpldf1 = as.data.frame( q_magr ); gpldf1$lineage = lineage_matched; gpldf1$time = time 
+  # gpldf = rbind( gpldf0, gpldf1 )
+  # p1 =  ggplot( aes(x = as.Date( date_decimal( time)), y = y, colour = lineage, fill = lineage , ymin = ylb, ymax = yub ) , data = gpldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Reproduction number' ) + theme_minimal() + scale_y_log10() + geom_hline( aes( yintercept=1), lty = 2 )  + theme(legend.position='top')
+  # 
+  # Rratio = gr / magr 
+  # qRr =  t( apply( Rratio, 1, function(x) quantile( na.omit(x), c(.5, .025, .975 )) ) )
+  # colnames( qRr ) =  c( 'y', 'ylb', 'yub' )
+  # Rrpldf = as.data.frame( qRr ); Rrpldf$time = time 
+  # p2 = ggplot( aes(x = as.Date( date_decimal( time)), y = y, ymin = ylb, ymax = yub ) , data = Rrpldf ) + geom_path() + geom_ribbon( alpha = .25 ) + xlab('') + ylab('Ratio of reproduction numbers' ) + theme_minimal() + scale_y_log10() + geom_hline( aes( yintercept=1), lty = 2 ) 
+  # 
+  # library( cowplot )
+  # P0 = plot_grid( plotlist = list( p0, p1, p2 ), nrow = 1 )
+  # # ggsave( plot = P0, file = 'd1.png', width = 8, height = 3 )
+  # ggsave( plot = P0, file = paste0('d1_', lineage_main, '_', lineage_matched, dedup, '.pdf'), width = 8, height = 3 )
+  # # ggsave( plot = P0, file = 'd1_regen.pdf', width = 8, height = 3 )
   
   
   return(list(pldf = pldf, 
