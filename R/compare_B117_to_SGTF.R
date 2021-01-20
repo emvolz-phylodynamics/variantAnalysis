@@ -19,11 +19,9 @@ B.1.1.7_matched_notB.1.1.7_deduped_meanrate0.0005 = unpack_two_Lineages(ofn = "C
 
 
 
-mleskystp <- readRDS("~/N501Y_analyses/dropouts/mleskystp.rds")
 
 sgss_stp_new_43_52_weeks <- readRDS("~/N501Y_analyses/dropouts/sgss_stp_new_43_52_weeks.rds")
 
-# plot(mleskystp[[1]][[2]]$ne)
 
 sgss_stp_new_43_52_weeks$true_negative = sgss_stp_new_43_52_weeks$sgss_s_negative * sgss_stp_new_43_52_weeks$total_cases /
   (sgss_stp_new_43_52_weeks$sgss_s_negative + sgss_stp_new_43_52_weeks$sgss_s_positive)
