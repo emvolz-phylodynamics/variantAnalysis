@@ -1,3 +1,10 @@
+#  _____ ___    ____  _   _ _   _    ___  _   _    ____ _     ___ __  __ ____  
+# |_   _/ _ \  |  _ \| | | | \ | |  / _ \| \ | |  / ___| |   |_ _|  \/  | __ ) 
+#   | || | | | | |_) | | | |  \| | | | | |  \| | | |   | |    | || |\/| |  _ \ 
+#   | || |_| | |  _ <| |_| | |\  | | |_| | |\  | | |___| |___ | || |  | | |_) |
+#   |_| \___/  |_| \_\\___/|_| \_|  \___/|_| \_|  \____|_____|___|_|  |_|____/ 
+
+
 
 datetree <- function(mltr, civmd, meanrate)
 {
@@ -78,5 +85,66 @@ dater_mlesky_plot <- function(trefn, matchedfn, ncpu = 5, meanrate = .001,   tax
   
   
 }
+
+
+
+# #############
+#  ____   ___ ____  _        ___  _       _ ____  
+# |___ \ / _ \___ \/ |      / _ \/ |     / | ___| 
+#   __) | | | |__) | |_____| | | | |_____| |___ \ 
+#  / __/| |_| / __/| |_____| |_| | |_____| |___) |
+# |_____|\___/_____|_|      \___/|_|     |_|____/ 
+
+
+# These calls will save an RDS like "d1-tN-sampler1_B.1.1.7_vs_matchSample_B.1.177_meanrate0.001.rds"
+
+# meanrate = .001
+B.1.1.7_matched_notB.1.1.7_meanrate_0.001 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000.nwk',
+                                                              matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/notB.1.1.7/matchSample_notB.1.1.7_2021-01-15_n=1000.nwk', ncpu = 5, meanrate = .001)
+
+
+
+
+B.1.1.7_matched_notB.1.1.7_deduped_meanrate_0.001 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000-deduped.nwk',
+                                                                      matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/notB.1.1.7/matchSample_notB.1.1.7_2021-01-15_n=1000-deduped.nwk', ncpu = 5, meanrate = .001)
+
+
+#!
+B.1.1.7_B.1.177_meanrate_0.001 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000.nwk',
+                                                   matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.177/matchSample_B.1.177_2021-01-15_n=1000.nwk', ncpu = 5, meanrate = .001)
+
+
+B.1.1.7_B.1.177_deduped_meanrate_0.001 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000-deduped.nwk',
+                                                           matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.177/matchSample_B.1.177_2021-01-15_n=1000-deduped.nwk', ncpu = 5, meanrate = .001)
+
+
+
+# meanrate = .0005
+
+B.1.1.7_matched_notB.1.1.7_meanrate_0.0005 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000.nwk',
+                                                               matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/notB.1.1.7/matchSample_notB.1.1.7_2021-01-15_n=1000.nwk', ncpu = 5,
+                                                               meanrate = .0005)
+
+
+
+
+B.1.1.7_matched_notB.1.1.7_deduped_0.0005 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000-deduped.nwk',
+                                                              matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/notB.1.1.7/matchSample_notB.1.1.7_2021-01-15_n=1000-deduped.nwk', ncpu = 5,
+                                                              meanrate = .0005)
+
+
+
+#!
+B.1.1.7_B.1.177_0.0005 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000.nwk',
+                                           matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.177/matchSample_B.1.177_2021-01-15_n=1000.nwk', ncpu = 5,
+                                           meanrate = .0005)
+
+
+B.1.1.7_B.1.177_deduped_0.0005 = dater_mlesky_plot(trefn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.1.7/sampler1_B.1.1.7_2021-01-15_n=1000-deduped.nwk',
+                                                   matchedfn = '/cephfs/covid/bham/climb-covid19-boydo/coguk_subsamples/B.1.177/matchSample_B.1.177_2021-01-15_n=1000-deduped.nwk', ncpu = 5,
+                                                   meanrate = .0005)
+
+
+
 
 
