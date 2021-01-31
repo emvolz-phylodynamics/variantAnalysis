@@ -209,7 +209,7 @@ print(paste('Starting ', Sys.time()) )
 		m = lm ( ndela ~ sta ) 
 		r2 = summary( m )$r.squared
 		oosp = predict(m, newdata =  data.frame(sta = unname( stu )) )  -  ndelu
-		mean( oosp^2) / mean( (predict(m) - ndela )^2 )
+		mean( oosp) / sqrt( mean( (predict(m) - ndela )^2 ) )
 	}
 	
 	# main 
