@@ -11,7 +11,9 @@ recurrent_mutations <- function(tr1, tipstate, sts = NULL )
 	library( ape ) 
 	library( sarscov2 )
 	library( lubridate )
-
+	
+	tipstate = tipstate[ tr1$tip.label ]
+	#TODO exclude tips missing state here 
 	if ( is.null( sts )) 
 		sts <- setNames( rep( Inf, Ntip(tr1)), tr1$tip.label)
 	
@@ -67,10 +69,12 @@ recurrent_mutations <- function(tr1, tipstate, sts = NULL )
 			#browser() 
 		}
 	}
-	
 	X = do.call( rbind, lapply( names(hpnodedata), function(nm){
 		x = hpnodedata[[nm]] 
-		y = expand.grid( D=x$D, G=x$G ) 
+		#y = expand.grid( x) 
+		xnms = names( x )[1:2] #only 2 genotypes supported
+		xx = as.list(  setNames(  sapply( x, sum ) , xnms ) )
+		y = data.frame( xx  )
 		y$node = nm 
 		y$minsamptime <- minsamptime[ as.numeric(nm) ] 
 		y
