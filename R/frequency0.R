@@ -736,6 +736,7 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 #' @export 
 variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
 {
+stop('Not implemented: Need to update to handle weeks in 2021')
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
 	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
@@ -840,6 +841,7 @@ variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint
 {
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
+	stopifnot( ('sample_date' %in% colnames(s))  |  ('sample_time' %in% colnames(s)) )
 	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
 	{
 		s$sample_time <- decimal_date( as.Date( ymd( s$sample_date ) )  )
@@ -848,13 +850,6 @@ variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint
 	s <- s[ s$sample_time >= mint  &  s$sample_time <= maxt , ]
 	rownames(s) <- NULL
 	s <- s[ order(s$sample_time ) , ]
-	
-	if ( !('epi_week' %in% colnames(s)))
-		s$epi_week <- lubridate::epiweek( s$sample_time )
-	
-	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
-	weekstarts = sapply( weeks, function(x) min( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
-	weekends = sapply( weeks, function(x) max( na.omit( s$sample_time[ s$epi_week==x ] ) ) )
 	
 	if ( 'weight' %in% colnames(s)){
 		s$weight <- s$weight / mean( s$weight ) 
@@ -873,7 +868,6 @@ variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint
 	estdf = data.frame( time = .s1$sample_time, estimated_logodds = .s1$estimated )
 	estdf <- estdf[ !duplicated(estdf$time), ]
 	estdf <- estdf[ order( estdf$time ) , ]
-	estdf$epiweek = lubridate::epiweek( date_decimal( estdf$time ) )
 	estdf <- cbind( estdf, t( sapply( 1:nrow(estdf), function(k){
 		.s2 <- .s1[ .s1$sample_time == estdf$time[k] , ]
 		n <- nrow( .s2 )
