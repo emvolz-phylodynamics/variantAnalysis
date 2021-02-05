@@ -220,6 +220,8 @@ print(paste('Starting ', Sys.time()) )
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
 			X = data.frame( cluster_id = ifelse(is.null(nodedata), as.character(u) ,  nodedata[ as.character(u), 'cluster_id' ] ) 
+			 , node_number = u 
+			 , parent_number = tail( ancestors[[u]], 1 )
 			 , most_recent_tip = as.Date( date_decimal( max( sts[ tu ]  ) ) )
 			 , least_recent_tip = as.Date( date_decimal( min( sts[ tu ]  ) ) )
 			 , cluster_size = length( tu )
@@ -237,8 +239,11 @@ print(paste('Starting ', Sys.time()) )
 	
 	ofn1 = glue( 'scanner-{max_date}.rds' )
 	ofn2 = glue( 'scanner-{max_date}.csv' )
+	ofn3 = glue( 'scanner-env-{max_date}.csv' )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
+	cat('saving image ... \n' ) 
+	save.image(file=ofn3)
 	cat( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly.\n \n'  ) )
 	invisible(Y) 
 }
