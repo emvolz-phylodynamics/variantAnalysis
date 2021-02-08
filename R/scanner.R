@@ -243,8 +243,84 @@ print(paste('Starting ', Sys.time()) )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	cat('saving image ... \n' ) 
-	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants )  
+	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y )  
 	saveRDS(e0, file=ofn3)
 	cat( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly.\n \n'  ) )
 	invisible(Y) 
+}
+
+
+#' @export
+condense_clusters <- function( Y, scanner_env, threshold_growth = .5 ){
+	e1 = as.environment( scanner_env )
+	attach( e1 )
+	candidate_nodes = cnodes = Y$node_number[ Y$logistic >= threshold_growth ]
+	stopifnot( length( cnodes ) > 0 )
+	keep <- sapply( cnodes, function(u){
+		tu = na.omit( descendantTips[[u]] )
+		x = sapply( setdiff(cnodes,u) , function(a) {
+			ta = na.omit(  descendantTips[[a]] )
+			alltuta = (all(tu %in% ta))
+			y = (length(ta) > length(tu))  &  alltuta
+			z = (length(ta)==length(tu)) & alltuta 
+			if (z & (a %in% ancestors[[u]])) {
+				return(FALSE) 
+			} else if (z & !(a %in% ancestors[[u]]) ){
+				return(TRUE)
+			}
+			y
+		})
+		all( !x )
+	})
+	keepnodes <- cnodes[ keep ]
+	detach( e1 )
+	keepnodes 
+}
+
+
+
+
+#' @export 
+cluster_muts = function( Y
+ , scanner_env 
+ , nodes 
+ , mutfn = list.files( patt = 'cog_global_[0-9\\-]+_mutations.csv' , full.name=TRUE , path = '../phylolatest/metadata/' )
+ , min_seq_contrast = 1 # sequences in ancestor clade
+ , overlap_threshold = .9
+ )
+{
+	e1 = as.environment( scanner_env )
+	attach( e1 )
+	
+	Ygr1 = Y[ Y$node_number %in% nodes , ] 
+	
+	mdf = read.csv( mutfn, stringsAs=FALSE )
+	
+	cms = lapply( 1:nrow(Ygr1) , function(ku) {
+		mdf.u = mdf[ mdf$sequence_name %in% strsplit( Ygr1$tips[ku], split = '\\|')[[1]] , ]
+		u = nodes[ku] 
+		
+		## find comparator ancestor 
+		for ( a in ancestors[[u]][-1] ){
+			sdt = setdiff( descendantTips[[a]] , descendantTips[[u]] ) 
+			if ( length( sdt ) >= min_seq_contrast )
+				break 
+		}
+		asids = setdiff( descendantSids[[a]] ,  descendantSids[[u]] )
+		mdf.a = mdf[ mdf$sequence_name %in% asids   , ]
+
+		vtabu = sort( table( do.call( c, strsplit( mdf.u$variants, split='\\|' )  ) ) / nrow( mdf.u ) )
+		vtaba = sort( table( do.call( c, strsplit( mdf.a$variants, split='\\|' )  ) ) / nrow( mdf.a ) )
+		
+		res = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
+		 , names(vtaba[ vtaba > overlap_threshold ]) )
+		 
+		sort( res ) 
+	})
+	
+	detach( e1 )
+	
+	ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
+	
+	ress2
 }
