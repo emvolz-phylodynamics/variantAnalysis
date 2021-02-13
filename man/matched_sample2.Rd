@@ -5,23 +5,26 @@
 \title{Matched sample by time (week) and UTLA for each sampled tree output from sample_lineage function}
 \usage{
 matched_sample2(
-  sample_lineage_output,
-  lineage = "B.1.177",
+  sample_lineage_output_table,
+  lineage = NULL,
+  lineage_name = NA,
   not_lineage = "B.1.1.7",
   n_multiplier = 1,
   deduplicate = FALSE
 )
 }
 \arguments{
-\item{sample_lineage_output}{output from sample_lineage}
+\item{lineage}{If not NULL, will interpret as regular expression; only matches will be sampled}
 
-\item{lineage}{If not NULL, sample will only include this lineage}
+\item{lineage_name}{incorporated into output file name}
 
 \item{not_lineage}{The sample will *not* include this lineage}
 
 \item{n_multiplier}{Optionally can draw multiple (integer) matches per element in csids}
 
 \item{deduplicate}{not implemented}
+
+\item{sample_lineage_output}{output from sample_lineage}
 }
 \description{
 Matched sample by time (week) and UTLA for each sampled tree output from sample_lineage function

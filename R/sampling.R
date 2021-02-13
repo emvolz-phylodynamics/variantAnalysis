@@ -237,15 +237,17 @@ stopifnot( !deduplicate ) #not implemented
 #' Matched sample by time (week) and UTLA for each sampled tree output from sample_lineage function
 #'
 #' @param sample_lineage_output output from sample_lineage
-#' @param lineage If not NULL, sample will only include this lineage 
+#' @param lineage If not NULL, will interpret as regular expression; only matches will be sampled
+#' @param lineage_name incorporated into output file name 
 #' @param not_lineage The sample will *not* include this lineage
 #' @param n_multiplier Optionally can draw multiple (integer) matches per element in csids 
 #' @param deduplicate not implemented 
 #' @export 
 matched_sample2 <- function( 
 	sample_lineage_output_table
-	 , lineage = NULL# 'B.1.177'
-	 , not_lineage = 'B.1.1.7'
+	 , lineage = NULL # 'B\\.1\\.177.*'  # pattern 
+	 , lineage_name = NA  # for output file name
+	 , not_lineage = 'B.1.1.7' # dont sample these
 	 , n_multiplier = 1
 	 , deduplicate = FALSE 
 ) {
@@ -257,7 +259,6 @@ stopifnot( !deduplicate ) #not implemented
 	
 	csids_list =  lapply( split(sample_lineage_output_table, sample_lineage_output_table$replicate) , function(y) y$central_sample_id ) 
 	nreps = length( csids_list )
-#browser()
 
 	civetfn =  list.files(  '/cephfs/covid/bham/climb-covid19-volze/phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
@@ -302,7 +303,7 @@ stopifnot( !deduplicate ) #not implemented
 		srec <- s[ s$central_sample_id %in% csids , ] 
 		sdon <- s[ !( s$central_sample_id %in% csids )  &  (s$lineage!=not_lineage) , ] 
 		if ( !is.null( lineage ) ){
-			sdon <- sdon [ s$lineage == lineage , ]
+			sdon <- sdon [ grepl(sdon$lineage, patt = lineage) , ]
 		}
 		
 		csid_control = do.call(c,  lapply( srec$key , function (key ){
@@ -317,16 +318,14 @@ stopifnot( !deduplicate ) #not implemented
 		csid_control
 	}
 	
-	
 	# sample over reps, ns; 
 	{
 		Xs <- lapply(1:nreps, function(k){
 			csids_control = .sample( k )
-#browser()
 			y = data.frame( central_sample_id = csids_control, replicate = k , sample_size = length( csids_control) )
 			y
 		})
-		saveRDS( Xs, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.rds')  )
+		saveRDS( Xs, file = glue('matchSample_not{not_lineage}_lineage{lineage_name}_{Sys.Date()}.rds')  )
 	}
 	#make tres
 	{
@@ -334,7 +333,7 @@ stopifnot( !deduplicate ) #not implemented
 			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
 		})
 		class( tres ) <- 'multiPhylo' 
-		write.tree( tres, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
+		write.tree( tres, file = glue('matchSample_not{not_lineage}_lineage{lineage_name}_{Sys.Date()}.nwk')  )
 	}
 	
 	list(
