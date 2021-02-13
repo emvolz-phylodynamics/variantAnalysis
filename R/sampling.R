@@ -243,8 +243,8 @@ stopifnot( !deduplicate ) #not implemented
 #' @param deduplicate not implemented 
 #' @export 
 matched_sample2 <- function( 
-	sample_lineage_output 
-	 , lineage = 'B.1.177'
+	sample_lineage_output_table
+	 , lineage = NULL# 'B.1.177'
 	 , not_lineage = 'B.1.1.7'
 	 , n_multiplier = 1
 	 , deduplicate = FALSE 
@@ -255,17 +255,18 @@ stopifnot( !deduplicate ) #not implemented
 	library( ape ) 
 	library( glue )
 	
-	csids_list =  lapply( sample_lineage_output$tables, '[[', 'central_sample_id' ) 
-	nreps = length( csids )
-		
-	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	csids_list =  lapply( split(sample_lineage_output_table, sample_lineage_output_table$replicate) , function(y) y$central_sample_id ) 
+	nreps = length( csids_list )
+#browser()
+
+	civetfn =  list.files(  '/cephfs/covid/bham/climb-covid19-volze/phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
 	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
 	civmd$sample_date <- as.Date( civmd$sample_date )
 	civmd$sample_time <- decimal_date( civmd$sample_date ) 
 	
 	# load majora  '../latest/majora.20201204.metadata.matched.tsv' 
-	jdf <- read.csv( list.files(  '../latest/' , patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
+	jdf <- read.csv( list.files(  '/cephfs/covid/bham/climb-covid19-volze/latest/' , patt = 'majora.metadata.matched.tsv', full.names=TRUE)  
 	, stringsAs=FALSE, sep = '\t' ) 
 	
 	# combine
@@ -282,7 +283,7 @@ stopifnot( !deduplicate ) #not implemented
 	s$year <- year ( s$sample_date )
 
 	# load tree and deduplicate 
-	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0 = read.tree( list.files( '/cephfs/covid/bham/climb-covid19-volze/phylolatest/trees', patt = '.*newick', full=T ))
 	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
 	tr1 <- keep.tip( tr0, s$central_sample_id )
 	
@@ -312,22 +313,23 @@ stopifnot( !deduplicate ) #not implemented
 			sample ( .s$central_sample_id, size = n , replace=FALSE )
 		}) )
 		csid_control <- na.omit( csid_control )
+		print(paste('made sample', k)) 
 		csid_control
 	}
 	
 	
 	# sample over reps, ns; 
 	{
-		X = do.call( rbind, lapply(1:nreps, function(k){
+		Xs <- lapply(1:nreps, function(k){
 			csids_control = .sample( k )
+#browser()
 			y = data.frame( central_sample_id = csids_control, replicate = k , sample_size = length( csids_control) )
 			y
-		}))
-		write.csv( X, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
+		})
+		saveRDS( Xs, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.rds')  )
 	}
 	#make tres
 	{
-		Xs <- split( X, X$replicate )
 		tres <- lapply( Xs, function(y){
 			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
 		})
@@ -337,7 +339,7 @@ stopifnot( !deduplicate ) #not implemented
 	
 	list(
 	 trees = tres 
-	 , tables = X
+	 , tables_list = Xs
 	)
 }
 
