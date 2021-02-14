@@ -12,6 +12,7 @@ scanner(
   max_date = NULL,
   ncpu = 8,
   path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/",
+  output_dir = ".",
   include_pillar1 = FALSE
 )
 }
@@ -29,6 +30,8 @@ scanner(
 \item{ncpu}{number cpu for multicore ops}
 
 \item{path_to_data}{Path to data with COG tree and COG tree metadata}
+
+\item{output_dir}{Path to directory where results will be saved}
 
 \item{include_pillar1}{if TRUE (default FALSE), will include Pillar 1 samples when computing stats}
 }

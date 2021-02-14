@@ -11,10 +11,12 @@
 #' @param max_date Only include samples before and including this date
 #' @param ncpu number cpu for multicore ops 
 #' @param path_to_data Path to data with COG tree and COG tree metadata 
+#' @param output_dir Path to directory where results will be saved 
 #' @param include_pillar1 if TRUE (default FALSE), will include Pillar 1 samples when computing stats
 #' @export 
 scanner <- function(treenexfn = NULL, min_descendants = 30 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8
  , path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/'
+ , output_dir = '.' 
  , include_pillar1 = FALSE
  )
 {
@@ -237,15 +239,16 @@ print(paste('Starting ', Sys.time()) )
 		}, mc.cores = ncpu )
 	)
 	
-	ofn1 = glue( 'scanner-{max_date}.rds' )
-	ofn2 = glue( 'scanner-{max_date}.csv' )
-	ofn3 = glue( 'scanner-env-{max_date}.rds' )
+	dir.create(output_dir, showWarnings = FALSE)
+	ofn1 = glue( paste0( output_dir, '/scanner-{max_date}.rds' ) )
+	ofn2 = glue( paste0( output_dir, '/scanner-{max_date}.csv' ) )
+	ofn3 = glue( paste0( output_dir, '/scanner-env-{max_date}.rds' ) )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	cat('saving image ... \n' ) 
 	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y )  
 	saveRDS(e0, file=ofn3)
-	cat( glue( 'Data written to {ofn1} and {ofn2}. Returning data frame invisibly.\n \n'  ) )
+	cat( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.\n \n'  ) )
 	invisible(Y) 
 }
 
