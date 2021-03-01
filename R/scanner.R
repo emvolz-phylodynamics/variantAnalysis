@@ -254,10 +254,12 @@ print(paste('Starting ', Sys.time()) )
 
 
 #' @export
-condense_clusters <- function( Y, scanner_env, threshold_growth = .5 ){
+condense_clusters <- function( Y, scanner_env, threshold_growth = .5 , candidate_nodes = NULL){
 	e1 = as.environment( scanner_env )
 	attach( e1 )
-	candidate_nodes = cnodes = Y$node_number[ Y$logistic >= threshold_growth ]
+	if ( is.null( candidate_nodes )){
+		candidate_nodes = cnodes = Y$node_number[ Y$logistic >= threshold_growth ]
+	}
 	stopifnot( length( cnodes ) > 0 )
 	keep <- sapply( cnodes, function(u){
 		tu = na.omit( descendantTips[[u]] )
@@ -279,6 +281,7 @@ condense_clusters <- function( Y, scanner_env, threshold_growth = .5 ){
 	detach( e1 )
 	keepnodes 
 }
+
 
 
 
@@ -317,13 +320,47 @@ cluster_muts = function( Y
 		
 		res = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
 		 , names(vtaba[ vtaba > overlap_threshold ]) )
-		 
 		sort( res ) 
 	})
 	
 	detach( e1 )
 	
-	ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
-	
+	ress2 = cms 
+	if ( length(cms) > 1 ){
+		ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
+	} 
 	ress2
+}
+#~ cluster_muts( Y, ey, nodes = 449569 )
+
+
+
+#' matched by time and in proportion to adm2 prevalence
+#'
+#' @export 
+get_comparator_sample <- function( u , scanner_env, nX = 5 ) 
+{
+	e1 = as.environment( scanner_env )
+	attach( e1 )
+	# weight for adm2 
+	 w = table ( amd$adm2[ match( descendantSids[[u]]  , amd$sequence_name ) ]  )  
+	 w = w [ names(w)!='' ]
+	 w = w / sum( w ) 
+	 
+	 nu <- ndesc[u] 
+	 tu =  descendantSids[[u]] 
+	 stu = descsts [[ u ]]
+	 minstu = min(na.omit(stu ))
+	 maxstu = max(na.omit(stu) )
+	 
+	 amd1 = amd[ (amd$sample_time >= minstu) & (amd$sample_time <= maxstu), c('sequence_name', 'sample_date', 'adm2') ]
+	 amd1 <- amd1[ !(amd1$sequence_name %in% tu) , ]
+	 amd1 <- amd1[ amd1$adm2 %in% names( w ) , ]
+	 na = min ( nrow( amd1 ) , nu * nX )
+	 if ( na < nu ) 
+		return ( NULL )
+	 amd1$w = w[ amd1$adm2 ] 
+	 ta = sample( amd1$sequence_name, replace=FALSE, size = na , prob = amd1$w ) 
+	 detach( e1 )
+	 ta
 }
