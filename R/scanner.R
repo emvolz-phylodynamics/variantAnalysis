@@ -364,3 +364,128 @@ get_comparator_sample <- function( u , scanner_env, nX = 5 )
 	 detach( e1 )
 	 ta
 }
+
+
+#'
+#'
+#' @export 
+compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds"), 
+                                path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/' , 
+                                include_pillar1=F, min_date = NULL, max_date = NULL,
+                                return_figure=F) 
+{
+  require(smicd)
+  
+  e1 = as.environment( scanner_env )
+  attach( e1 )
+  
+  n <- Ntip( tre ) 
+  nnode = Nnode( tre )
+  
+  ## needed for get_comparator_sample
+  ndesc <- sapply( 1:(n+nnode), function(u) length( descendantSids[[u]] ) )
+  
+  tu =  descendantSids[[u]] 
+  stu = sts[ na.omit( descendantSids[[u]] )  ]
+  minstu = min(na.omit(stu ))
+  maxstu = max(na.omit(stu) )
+  
+  ## regen (a) for get_comparator_sample and (b) for source_age column
+  amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_all_metadata.csv', full.names=TRUE) 
+                   , stringsAs=FALSE )
+  amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
+  
+  # exclude global 
+  amd <- amd[ amd$country == 'UK', ]
+  # exclude p1 
+  if ( !include_pillar1 )
+  {
+    lhls <- paste0( '.*/', c( 'MILK', 'ALDP', 'QEUH', 'CAMC'), '.*')
+    lhpatt = paste( lhls, collapse = '|' )
+    amd <- amd[ grepl(amd$sequence_name, patt = lhpatt ) , ] 
+  }
+  
+  max_time <- Inf 
+  if ( !is.null( max_date )){
+    max_time <- decimal_date( max_date )
+  } else{
+    max_date <- Sys.Date()
+  }
+  
+  min_time <- -Inf 
+  if (!is.null( min_date ))
+    min_time <- decimal_date( min_date )
+  
+  # sample time 
+  amd$sts <- decimal_date ( as.Date( amd$sample_date ) )
+  amd <- amd [ (amd$sts >= min_time) & (amd$sts <= max_time) , ] 
+  amd <- amd[ !is.na( amd$sequence_name ) , ]
+  ##
+  
+  ## using cog ages (rather than phe ages)
+  amd <- subset(amd,!is.na(source_age)&source_age<120)
+  
+  comparator_sample <- get_comparator_sample(u , scanner_env, nX = 1000)
+  
+  amd1 = amd[ (amd$sample_time >= minstu) & (amd$sample_time <= maxstu), c('sequence_name', 'source_age') ]
+  
+  ## covert cog ages to phe age bands
+  agemap <- rep(1:10,times=c(5,5,10,10,10,10,10,10,10,45))
+  amd1$age <- agemap[1+amd1$source_age]
+  age_samples <- amd1$age[amd1$sequence_name%in%tu]
+  n_samples <- length(age_samples)
+  comparator_age_samples <- amd1$age[amd1$sequence_name%in%comparator_sample]
+  n_comp <- length(comparator_age_samples)
+  
+  xout <- seq(1,11,length=1000)
+  xcat <- as.numeric(cut(xout,1:11,labels=1:10,include.lowest = T))
+  
+  ## infer densities
+  x1 <- smicd::kdeAlgo(as.factor(age_samples),1:11,evalpoints = 100)
+  x2 <- smicd::kdeAlgo(as.factor(comparator_age_samples),1:11,evalpoints = 100)
+  # probability distributions
+  probs1 <- approx(x=x1$gridx,y=x1$resultDensity[,smpl],xout=xout)$y
+  probs2 <- approx(x=x2$gridx,y=x2$resultDensity[,smpl],xout=xout)$y
+  probscat <- sapply(1:10,function(x)sum(probs2[xcat==x]))
+  probscat <- probscat/sum(probscat)
+  # log probs of target sample
+  s1prob <- sum(log(probscat[age_samples]))
+  
+  ## if using kolmogorov-smirnov test
+  # resample real values
+  # s1 <- sample(x=xout,size=n_samples,prob=probs1,replace = T)
+  # s2 <- sample(x=xout,size=n_comp,prob=probs2,replace = T)
+  # teststat <- ks.test(s1,s2)$statistic
+  # pval <- ks.test(s1,s2)$p.value
+  
+  # if(n_samples < 100){
+  
+  ## build null
+  x0 <- smicd::kdeAlgo(as.factor(c(age_samples,comparator_age_samples)),1:11,evalpoints = 100)
+  probs0 <- approx(x=x0$gridx,y=x0$resultDensity[,smpl],xout=xout)$y
+  nullstat <- nulllogprob <- c()
+  nboot <- 1000
+  for(i in 1:nboot){
+    s1 <- sample(x=xout,size=n_samples,prob=probs0,replace = T)
+    s1cat <- as.numeric(cut(s1,1:11,labels=1:10,include.lowest = T))
+    nulllogprob[i] <- sum(log(probscat[s1cat]))
+    s2 <- sample(x=xout,size=n_comp,prob=probs0,replace = T)
+    # kolmogorov-smirnov test
+    # nullstat[i] <- ks.test(s1,s2)$statistic
+  }
+  pval <- sum(nulllogprob<s1prob)/nboot  # sum(nullstat>teststat)/nboot
+  # }
+  
+  detach( e1 )
+  if(return_figure==F) return(pval)
+  
+  # plot densities
+  smpl <- 480; 
+  tab <- data.frame(Age=c(x1$gridx,x2$gridx),
+                    Density=c(x1$resultDensity[,smpl],x2$resultDensity[,smpl]),
+                    Group=rep(c('Target','Comparator'),each=length(x1$gridx)))
+  figure <- ggplot(tab,aes(x=Age,y=Density,colour=Group)) + geom_line(size=1) + theme_bw(base_size = 15)
+  return(list(pval,figure))
+}
+
+
