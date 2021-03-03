@@ -371,7 +371,7 @@ get_comparator_sample <- function( u , scanner_env, nX = 5 )
 #' @export 
 compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds"), 
                                 path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/' , 
-                                include_pillar1=F, min_date = NULL, max_date = NULL,
+                                include_pillar1=T, min_date = NULL, max_date = NULL,
                                 return_figure=F) 
 {
   require(smicd)
