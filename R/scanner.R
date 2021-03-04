@@ -384,6 +384,7 @@ compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021
   
   ## needed for get_comparator_sample
   ndesc <- sapply( 1:(n+nnode), function(u) length( descendantSids[[u]] ) )
+  descsts = lapply( 1:(n+nnode), function(u) sts[ na.omit( descendantSids[[u]] )  ]  )
   
   tu =  descendantSids[[u]] 
   stu = sts[ na.omit( descendantSids[[u]] )  ]
@@ -444,12 +445,9 @@ compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021
   x1 <- smicd::kdeAlgo(as.factor(age_samples),1:11,evalpoints = 100)
   x2 <- smicd::kdeAlgo(as.factor(comparator_age_samples),1:11,evalpoints = 100)
   # probability distributions
+  smpl <- 480; 
   probs1 <- approx(x=x1$gridx,y=x1$resultDensity[,smpl],xout=xout)$y
   probs2 <- approx(x=x2$gridx,y=x2$resultDensity[,smpl],xout=xout)$y
-  probscat <- sapply(1:10,function(x)sum(probs2[xcat==x]))
-  probscat <- probscat/sum(probscat)
-  # log probs of target sample
-  s1prob <- sum(log(probscat[age_samples]))
   
   ## if using kolmogorov-smirnov test
   # resample real values
@@ -463,24 +461,31 @@ compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021
   ## build null
   x0 <- smicd::kdeAlgo(as.factor(c(age_samples,comparator_age_samples)),1:11,evalpoints = 100)
   probs0 <- approx(x=x0$gridx,y=x0$resultDensity[,smpl],xout=xout)$y
-  nullstat <- nulllogprob <- c()
+  probscat <- sapply(1:10,function(x)sum(probs0[xcat==x]))
+  probscat <- probscat/sum(probscat)
+  expected <- probscat*n_samples
+  # difference of target sample
+  s1diff <- sum((expected - sapply(1:10,function(x)sum(age_samples==x)))^2/expected)
+  # sample
+  nullstat <- nulldiff <- c()
   nboot <- 1000
   for(i in 1:nboot){
     s1 <- sample(x=xout,size=n_samples,prob=probs0,replace = T)
     s1cat <- as.numeric(cut(s1,1:11,labels=1:10,include.lowest = T))
-    nulllogprob[i] <- sum(log(probscat[s1cat]))
-    s2 <- sample(x=xout,size=n_comp,prob=probs0,replace = T)
+    nulldiff[i] <- sum((expected - sapply(1:10,function(x)sum(s1cat==x)))^2/expected)
+    # s2 <- sample(x=xout,size=n_comp,prob=probs0,replace = T)
     # kolmogorov-smirnov test
     # nullstat[i] <- ks.test(s1,s2)$statistic
   }
-  pval <- sum(nulllogprob<s1prob)/nboot  # sum(nullstat>teststat)/nboot
+  pval <- sum(nulldiff<s1diff)/nboot  
+  # 1 - pchisq(s1diff,9)
+  # sum(nullstat>teststat)/nboot
   # }
   
   detach( e1 )
   if(return_figure==F) return(pval)
   
   # plot densities
-  smpl <- 480; 
   tab <- data.frame(Age=c(x1$gridx,x2$gridx),
                     Density=c(x1$resultDensity[,smpl],x2$resultDensity[,smpl]),
                     Group=rep(c('Target','Comparator'),each=length(x1$gridx)))
@@ -489,3 +494,22 @@ compare_age_groups <- function( u=406318 , scanner_env=readRDS("scanner-env-2021
 }
 
 
+#'
+#'
+#' @export 
+get_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds")) 
+{
+  require(mlesky)
+  
+  e1 = as.environment( scanner_env )
+  attach( e1 )
+  
+  mr = 5.9158E-4
+  utre <- keep.tip(tre, descendantSids[[u]])
+  sample_times <- sts[utre$tip.label]
+  
+  msg <- mlskygrid(multi2di(utre), tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sample_times , 
+                   res = 10, ncpu = 3)
+  
+  msg
+}
