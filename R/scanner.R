@@ -508,7 +508,13 @@ get_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.r
   utre <- keep.tip(tre, descendantSids[[u]])
   sample_times <- sts[utre$tip.label]
   
-  msg <- mlskygrid(multi2di(utre), tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sample_times , 
+  tr <- di2multi(utre, tol = 1e-05)
+  tr = unroot(multi2di(tr))
+  tr$edge.length <- pmax(1/29000/5, tr$edge.length)
+  tr3 <- dater(unroot(tr), sts[tr$tip.label], s = 29000, omega0 = mr, 
+               numStartConditions = 0, meanRateLimits = c(mr, mr + 1e-6), ncpu = 6)
+  
+  msg <- mlskygrid(tr3, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sts[tr3$tip.label] , 
                    res = 10, ncpu = 3)
   
   msg
