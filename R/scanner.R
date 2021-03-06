@@ -43,9 +43,7 @@ print(paste('Starting ', Sys.time()) )
 		nodedata = NULL
 	} else{
 		library( treeio ) 
-		trd = read.beast( treenexfn )
-		#saveRDS( trd, file = 'trd.rds' )
-		#trd = readRDS( 'trd.rds' )
+		trd = .read.beast( treenexfn )
 		tre = get.tree( trd )
 		nodedata = as.data.frame( get.data( trd ) )
 		rownames( nodedata ) <- nodedata$node
@@ -138,6 +136,7 @@ print(paste('Starting ', Sys.time()) )
 	{
 		nu = ndesc[u] 
 		asu = ancestors[[u]]
+		na = -1
 		for ( a in asu ){
 			na = ndesc[a]
 			nc = na - nu 
@@ -146,8 +145,11 @@ print(paste('Starting ', Sys.time()) )
 				break 
 			}
 		}
-		if ( na < nu )
+		if ( na < nu ){
+			#browser() 
+			message('Failed to find comparator ancestor with more tips. Returning NA. Node: ', u) 
 			return (NA) 
+		}
 		a
 	}
 	
@@ -185,9 +187,18 @@ print(paste('Starting ', Sys.time()) )
 		sta = sts[ ta ]
 		stu = descsts [[ u ]]
 		X = data.frame( time = c( sta, stu ), type = c( rep('control', length(ta)), rep('clade',length(tu)) ) )
+		X = na.omit( X ) 
 		m = glm( type=='clade' ~ time, data = X, family = binomial( link = 'logit' ))
-		summary( m ) 
-		unname( coef( m )[2] * generation_time_scale ) 
+		s = summary( m ) 
+		rv = unname( coef( m )[2] * generation_time_scale ) 
+		p = NA 
+		if ( is.na( rv )){
+			message( 'NA growth stat, node: ', u  )	
+			#browser()
+		} else{ 
+			p = s$coefficients[2, 4 ]
+		}
+		c( rv, p )
 	}
 	
 	# log median p-value of rtt predicted divergence of tips under u
@@ -211,7 +222,8 @@ print(paste('Starting ', Sys.time()) )
 		m = lm ( ndela ~ sta ) 
 		r2 = summary( m )$r.squared
 		oosp = predict(m, newdata =  data.frame(sta = unname( stu )) )  -  ndelu
-		mean( oosp) / sqrt( mean( (predict(m) - ndela )^2 ) )
+		#mean( oosp) / sqrt( mean( (predict(m) - ndela )^2 ) )
+		sqrt( mean( oosp^2 )  )
 	}
 	
 	# main 
@@ -221,20 +233,23 @@ print(paste('Starting ', Sys.time()) )
 	Y = do.call( rbind, 
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
-			X = data.frame( cluster_id = ifelse(is.null(nodedata), as.character(u) ,  nodedata[ as.character(u), 'cluster_id' ] ) 
+			lgs = .logistic_growth_stat ( u )
+			X = data.frame( cluster_id = ifelse(is.null(nodedata)
+				, as.character(u) 
+				,  as.character(nodedata[ as.character(u), 'cluster_id' ]) 
+				) 
 			 , node_number = u 
-			 , parent_number = tail( ancestors[[u]], 1 )
-			 , most_recent_tip = as.Date( date_decimal( max( sts[ tu ]  ) ) )
-			 , least_recent_tip = as.Date( date_decimal( min( sts[ tu ]  ) ) )
+			 , parent_number = ifelse( is.null(ancestors[[u]] ), NA, tail( ancestors[[u]], 1 ) ) 
+			 , most_recent_tip = as.Date( date_decimal( max( na.omit(sts[ tu ])  ) ) )
+			 , least_recent_tip = as.Date( date_decimal( min( na.omit( sts[ tu ])  ) ) )
 			 , cluster_size = length( tu )
-			 , logistic_growth_rate = .logistic_growth_stat ( u ) 
+			 , logistic_growth_rate = lgs[1]
+			 , logistic_growth_rate_p = lgs[2] 
 			 , clock_outlier = .clock_outlier_stat(u)
 			 , lineage = paste( unique(amd$lineage[ match( tu, amd$sequence_name)]) , collapse = '|' )
 			 , tips = paste( tu, collapse = '|' )
 			 , stringsAsFactors=FALSE
 			)
-			
-			cat( paste( Sys.time() , u, X$cluster_id, X$cluster_size, X$logistic_growth_rate, X$clock_outlier , '\n' ))
 			X
 		}, mc.cores = ncpu )
 	)
@@ -246,7 +261,9 @@ print(paste('Starting ', Sys.time()) )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	cat('saving image ... \n' ) 
-	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y )  
+	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y 
+	  , nodedata = nodedata
+	)  
 	saveRDS(e0, file=ofn3)
 	cat( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.\n \n'  ) )
 	invisible(Y) 
