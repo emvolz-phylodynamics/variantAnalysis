@@ -287,10 +287,6 @@ inner_condense_clusters <- function( Y, threshold_growth = .5 , candidate_nodes 
   keepnodes 
 }
 
-
-
-
-
 #' @export 
 cluster_muts = function( Y
  , scanner_env 
@@ -385,12 +381,12 @@ inner_get_comparator_sample <- function( u, nX = 5 )
 compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-env-2021-03-03.rds"), 
                                 path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/' , 
                                 include_pillar1=F, min_date = NULL, max_date = NULL,
-                                return_figure=F,threshold_growth = .5) 
+                                threshold_growth = .5,return_figure=F,fast_return=F) 
 {
   
   {##
   require(ape)
-  require(smicd)
+  # require(smicd)
   
   e1 = as.environment( scanner_env )
   attach( e1 )
@@ -399,13 +395,8 @@ compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-
   nnode = Nnode( tre )
   
   ## needed for get_comparator_sample
-  ndesc <- sapply( 1:(n+nnode), function(u) length( descendantSids[[u]] ) )
-  descsts = lapply( 1:(n+nnode), function(u) sts[ na.omit( descendantSids[[u]] )  ]  )
-  
-  tu =  descendantSids[[u]] 
-  stu = sts[ na.omit( descendantSids[[u]] )  ]
-  minstu = min(na.omit(stu ))
-  maxstu = max(na.omit(stu) )
+  ndesc <<- sapply( 1:(n+nnode), function(u) length( descendantSids[[u]] ) )
+  descsts <<- lapply( 1:(n+nnode), function(u) sts[ na.omit( descendantSids[[u]] )  ]  )
   
   ## regen for get_comparator_sample
   amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
@@ -436,7 +427,7 @@ compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-
   # sample time 
   amd$sts <- decimal_date ( as.Date( amd$sample_date ) )
   amd <- amd [ (amd$sts >= min_time) & (amd$sts <= max_time) , ] 
-  amd <- amd[ !is.na( amd$sequence_name ) , ]
+  amd <<- amd[ !is.na( amd$sequence_name ) , ]
   }##
   
   ## select nodes
@@ -444,17 +435,21 @@ compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-
   
   ## inner function call
   ret <- list()
-  for(u in targetnodes)
-    ret[[u]] <- inner_compare_age_groups(u, return_figure=F)
+  for(u in 1:length(targetnodes))
+    ret[[u]] <- inner_compare_age_groups(targetnodes[u], return_figure,fast_return)
   ##
   detach( e1 )
   return(ret)
 }
 
 #' internal function calls only, assuming amd is already in the environment
-inner_compare_age_groups <- function(u=406318, return_figure=F){
+inner_compare_age_groups <- function(u=406318, return_figure=F,fast_return=F){
   
-  ##!! loads environment again
+  tu =  descendantSids[[u]] 
+  stu = sts[ na.omit( descendantSids[[u]] )  ]
+  minstu = min(na.omit(stu ))
+  maxstu = max(na.omit(stu) )
+  
   comparator_sample <- inner_get_comparator_sample(u, nX = 1000)
   
   ## covert cog ages to phe age bands
@@ -471,49 +466,33 @@ inner_compare_age_groups <- function(u=406318, return_figure=F){
   comparator_age_samples <- amd1$age[amd1$sequence_name%in%comparator_sample]
   n_comp <- length(comparator_age_samples)
   
-  xout <- seq(1,11,length=1000)
-  xcat <- as.numeric(cut(xout,1:11,labels=1:10,include.lowest = T))
+  ## fast return: chi squared
+  if(fast_return) {
+    sam <- sapply(1:10,function(x)sum(age_samples==x))#cumsum(probs2/sum(probs2))
+    com <- sapply(1:10,function(x)sum(comparator_age_samples==x))
+    pval <- chisq.test(cbind(sam,com))$p.value
+    return(pval)
+  }
   
-  ## infer densities
-  x1 <- smicd::kdeAlgo(as.factor(age_samples),1:11,evalpoints = 100)
-  x2 <- smicd::kdeAlgo(as.factor(comparator_age_samples),1:11,evalpoints = 100)
   # probability distributions
   smpl <- 480; 
-  probs1 <- approx(x=x1$gridx,y=x1$resultDensity[,smpl],xout=xout)$y
-  probs2 <- approx(x=x2$gridx,y=x2$resultDensity[,smpl],xout=xout)$y
-  
-  ## if using kolmogorov-smirnov test
-  # resample real values
-  # s1 <- sample(x=xout,size=n_samples,prob=probs1,replace = T)
-  # s2 <- sample(x=xout,size=n_comp,prob=probs2,replace = T)
-  # teststat <- ks.test(s1,s2)$statistic
-  # pval <- ks.test(s1,s2)$p.value
-  
-  # if(n_samples < 100){
-  
-  ## build null
-  x0 <- smicd::kdeAlgo(as.factor(c(age_samples,comparator_age_samples)),1:11,evalpoints = 100)
-  probs0 <- approx(x=x0$gridx,y=x0$resultDensity[,smpl],xout=xout)$y
-  probscat <- sapply(1:10,function(x)sum(probs0[xcat==x]))
-  probscat <- probscat/sum(probscat)
-  expected <- probscat*n_samples
-  # difference of target sample
-  s1diff <- sum((expected - sapply(1:10,function(x)sum(age_samples==x)))^2/expected)
-  # sample
-  nullstat <- nulldiff <- c()
+  all_samples <- c(age_samples,comparator_age_samples)
+  n_all <- n_samples + n_comp
+  cumulative1 <- sapply(1:10,function(x)sum(age_samples<=x)/n_samples)
+  cumulative2 <- sapply(1:10,function(x)sum(all_samples<=x)/n_all)#
+  # pad2 <- factor(c(rep(0,sum(all_samples==1)),all_samples,rep(11,sum(all_samples==10))))
+  # x2 <- smicd::kdeAlgo(pad2,classes=as.numeric(c(levels(pad2),12)),evalpoints = 100)
+  # probs2 <- approx(x=x2$gridx,y=x2$resultDensity[,smpl],xout=2:11)$y
+  # cumulative2 <- cumsum(probs2/sum(probs2))
+  s1stat <- max(abs(cumulative1 - cumulative2))
   nboot <- 1000
   for(i in 1:nboot){
-    s1 <- sample(x=xout,size=n_samples,prob=probs0,replace = T)
-    s1cat <- as.numeric(cut(s1,1:11,labels=1:10,include.lowest = T))
-    nulldiff[i] <- sum((expected - sapply(1:10,function(x)sum(s1cat==x)))^2/expected)
-    # s2 <- sample(x=xout,size=n_comp,prob=probs0,replace = T)
-    # kolmogorov-smirnov test
-    # nullstat[i] <- ks.test(s1,s2)$statistic
+    s1froms2 <- sample(x=all_samples,size=n_samples,replace = T)
+    #s1froms2 <- sample(x=1:10,size=n_samples,prob=probs2,replace = T)
+    cumulative1 <- sapply(1:10,function(x)sum(s1froms2<=x)/n_samples)
+    nullstat[i] <- max(abs(cumulative1 - cumulative2))
   }
-  pval <- sum(nulldiff<s1diff)/nboot  
-  # 1 - pchisq(s1diff,9)
-  # sum(nullstat>teststat)/nboot
-  # }
+  pval <- sum(nullstat>s1stat)/nboot
   
   if(return_figure==F) return(pval)
   
