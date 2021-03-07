@@ -486,6 +486,7 @@ inner_compare_age_groups <- function(u=406318, return_figure=F,fast_return=F){
   # cumulative2 <- cumsum(probs2/sum(probs2))
   s1stat <- max(abs(cumulative1 - cumulative2))
   nboot <- 1000
+  nullstat <- c()
   for(i in 1:nboot){
     s1froms2 <- sample(x=all_samples,size=n_samples,replace = T)
     #s1froms2 <- sample(x=1:10,size=n_samples,prob=probs2,replace = T)
