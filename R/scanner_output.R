@@ -28,32 +28,35 @@
 #' @param path_to_save Path to directory to save markdown in, if NULL will save in current working directory  
 #' @export 
 
-scanner_output = function(lineages = c("A.23.1", "B.1.525", "B.1.351"), mutations = NULL, cut_off = NULL, 
-         path_to_scanner = "C:/Users/oboyd/Documents/COGUK_server/min_10/3_month/", 
-         scanner_run_date = "2020-03-06",
+scanner_output = function(lineages = "B.1.525", mutations = NULL, cut_off = NULL, 
+         path_to_scanner = "C:/Users/oboyd/Documents/COGUK_server/min_25/3_month/", 
+         scanner_run_date = "2021-03-19",
          path_to_data = "C:/Users/oboyd/Documents/COGUK_server/", path_to_metadata = NULL, 
          log_growth_rate_cut_off = 0.0, defining_mutations_cut_off = 90, 
-         prop_mutations = 25, path_to_save = NULL, min_size = 10, max_size = 20000,
-         max_date = "2021-02-19", min_date = "2020-11-01", 
-         include_pillar1 = FALSE, scanner_run_Date = "2021-02-16", 
-         generation_time = 6.5) { 
+         prop_mutations = 25, path_to_save = NULL, min_size = 25, max_size = 20000,
+         max_date = "2021-03-04", min_date = "2020-11-01", 
+         include_pillar1 = FALSE, generation_time = 6.5) { 
   
   library(glue)
   
   if(!is.null(path_to_save)) { 
     
-  rmarkdown::render('master_scanner.Rmd' 
+  rmarkdown::render(glue('{path_to_data}master_scanner.Rmd') 
                     ,output_file = glue('scanner-{max_date}-{min_date}-{ifelse(!is.null(lineages),paste0(paste(lineages, collapse = "-"),"-"),"")}{ifelse(!is.null(mutations),paste0(paste(mutations, collapse = "-"),"-"),"")}{ifelse(!is.null(cut_off),paste0(paste(cut_off, collapse = "-"),"-"),"")}report') 
                     ,output_dir = path_to_save
                     ) 
   } else { 
     
-    rmarkdown::render('master_scanner.Rmd'
+    rmarkdown::render(glue('{path_to_data}master_scanner.Rmd') 
                       ,output_file = glue('scanner-{max_date}-{min_date}-{ifelse(!is.null(lineages),paste0(paste(lineages, collapse = "-"),"-"),"")}{ifelse(!is.null(mutations),paste0(paste(mutations, collapse = "-"),"-"),"")}{ifelse(!is.null(cut_off),paste0(paste(cut_off, collapse = "-"),"-"),"")}report')
                       )
   }
   
 }
 
+
+print(Sys.time())
+scanner_output()
+print(Sys.time())
 #' to run: scanner_output()
 

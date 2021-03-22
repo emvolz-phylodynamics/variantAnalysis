@@ -32,9 +32,14 @@ library( variantAnalysis )
 library( glue )
 library( stringr ) 
 library( kableExtra )
+library( sjmisc )
 library( Hmisc )
 library( dplyr )
 library( tidyr )
+
+#lineages = c("A.23.1", "B.1.351", "B.1.525")
+#mutations =  NULL #c("E494K")
+#cut_off = NULL #c("Logistic growth rate > 0.2")
 
 #data paths
 
@@ -46,16 +51,48 @@ data_fn = glue('{path_to_data}')
 
 ress = readRDS(scanner_fn)
 envs = readRDS(scanner_env_fn)
-amd = read.csv( list.files(  paste0( path_to_data) , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
-                   , stringsAs=FALSE )
-mts = read.csv( list.files(  paste0( path_to_data) , patt = 'cog_global_[0-9\\-]+_mutations.csv', full.names=TRUE) 
-                   , stringsAs=FALSE )
-gdf = read.csv( list.files(  paste0( path_to_data) , patt = 'cog_global_[0-9\\-]+_geography.csv', full.names=TRUE) 
-                   , stringsAs=FALSE )
+Ygr1 = readRDS(glue('{path_to_scanner}Ygr1_{max_date}_{min_date}.rds')) 
+s = readRDS(glue('{path_to_scanner}sequence_data_{max_date}_{min_date}.rds'))
 
-mts$lineage_muts = mts$lineage
+mutfn = list.files( paste0( path_to_data) ,   
+                    patt = 'cog_global_[0-9\\-]+_mutations.csv' , 
+                    full.name = TRUE)
 
-#parameters
+afn = list.files( paste0( path_to_data) ,   
+                  patt = 'cog_[0-9\\-]+_metadata.csv' , 
+                  full.name = TRUE)
+cfn = list.files( paste0( path_to_data) ,   
+                  patt = 'cog_global_[0-9\\-]+_metadata.csv' , 
+                  full.name = TRUE)
+gfn = list.files( paste0( path_to_data) , 
+                  patt = 'cog_global_[0-9\\-]+_geography.csv', 
+                  full.names=TRUE) 
+wfn = list.files( paste0( path_to_data) , 
+                  patt = 'a0-weightsdf-[0-9\\-]+.csv',
+                  full.name = TRUE)
+
+mdf = read.csv( mutfn , stringsAs=FALSE )
+mdf$lineage_muts = mdf$lineage
+mdf = mdf %>% select(lineage_muts, variants, sequence_name)
+
+gdf = read.csv(gfn , stringsAs = FALSE)
+gdf = gdf %>% select(longitude, latitude, sequence_name)
+
+amd = read.csv( afn , stringsAs = FALSE ) 
+amd$sample_time = decimal_date(ymd(amd$sample_date))
+
+cmd = read.csv(cfn, stringsAs = FALSE)
+cmd = cmd %>% select(sequence_name, central_sample_id)
+
+wdf = read.csv(wfn, stringsAs = FALSE )
+
+amd = merge(amd, cmd, by = "sequence_name")
+amd = merge(amd, mdf, by = "sequence_name")
+amd = merge(amd, gdf, by = "sequence_name")
+amd = merge(amd, wdf, by = "central_sample_id")
+
+
+#parameters setup
 
 max_time = decimal_date(as.Date( max_date ))
 min_time = decimal_date(as.Date( min_date ))
@@ -63,11 +100,8 @@ min_time = decimal_date(as.Date( min_date ))
 amd$sample_date = ymd( amd$sample_date )
   
   # exclude global 
-
 amd <- amd[ amd$country == 'UK', ]
-
   # exclude p1 
-
 if ( !include_pillar1 )
   {
     lhls <- paste0( '.*/', c( 'MILK', 'ALDP', 'QEUH', 'CAMC'), '.*')
@@ -80,21 +114,20 @@ amd$sts <- decimal_date ( as.Date( amd$sample_date ) )
 amd <- amd [ (amd$sts >= min_time) & (amd$sts <= max_time) , ] 
 sts <- setNames( amd$sts , amd$sequence_name )
 amd <- amd[ !is.na( amd$sequence_name ) , ]
+
+
+if(!is.null(mutations)) {
+  
+  mts_patt = paste0('.*', c(mutations), '.*')
+  
+}
+
 least_recent_tip_date = min(amd$sample_date)
 most_recent_tip_date = max(amd$sample_date)
 num_sequences = length(amd$sequence_name)
 generation_time = generation_time 
 scanner_run_date = as.Date(ymd(scanner_run_date))
 
-
-amd = merge(amd, gdf, by = "sequence_name")
-amd = merge(amd, mts, by = "sequence_name")
-
-if(!is.null(mutations)) {
-  
-  mts_patt = paste0('.*', c(mutations), '.*')
-  
-  }
 
 
 ```
@@ -159,7 +192,7 @@ This analysis is based on outputs from our scanning tool run on `r scanner_run_d
   
 ```{r echo = FALSE, results = "asis", warning = F, message = F}
 
-# bullet point specifications ###
+
 
 if(!is.null(mutations) | !is.null(lineages)){ 
 
@@ -182,7 +215,7 @@ if(!is.null(mutations) | !is.null(lineages)){
   if(!is.null(mutations) & is.null(lineages)){ 
   
     input = mutations
-    type = rep("variant", length(input))
+    type = rep("mutation", length(input))
     
     for(i in 1:length(input)){ 
       
@@ -194,7 +227,7 @@ if(!is.null(mutations) | !is.null(lineages)){
   if(!is.null(mutations) & !is.null(lineages)){ 
   
     input = c(lineages,mutations)
-    type = c(rep("lineage", length(lineages)) ,rep("variant", length(mutations)))
+    type = c(rep("lineage", length(lineages)) ,rep("mutation", length(mutations)))
   
     for(i in 1:length(input)){ 
       
@@ -214,7 +247,7 @@ if(!is.null(mutations) | !is.null(lineages)){
   seq_data = data.frame(seq_num, type, input)
 
   template <- 
-  "* **%s whole genomes** sampled from %s **%s**
+  "* **%s whole genomes** sampled with %s **%s**
 
 "
 
@@ -232,8 +265,6 @@ We conduct variant scanning in real-time on lineages or variants of interest to 
 ```{r echo=FALSE, results="asis", message=F, warning=F}
 
 
-# paragraph specifications ####
-
 if(is.null(mutations) & is.null(cut_off)){ 
   
   inclusion_criteria = paste0("lineages ", toString(paste0(lineages)))
@@ -244,9 +275,9 @@ if(is.null(mutations) & is.null(cut_off)){
 
 if(is.null(lineages) & is.null(cut_off)){ 
   
-  inclusion_criteria = paste0("variants ", toString(paste0(mutations)))
-  cluster_interest = "variants"
-  cluster_interest2 = "(% variant)"
+  inclusion_criteria = paste0("mutations ", toString(paste0(mutations)))
+  cluster_interest = "mutations"
+  cluster_interest2 = "(% mutant)"
   
 }
 
@@ -260,17 +291,17 @@ if(is.null(lineages) & is.null(mutations)){
 
 if(!is.null(lineages) & !is.null(mutations) & is.null(cut_off)){ 
   
-  inclusion_criteria = paste0("lineages ",toString(paste0(lineages)), " and variants ",
+  inclusion_criteria = paste0("lineages ",toString(paste0(lineages)), " and mutations ",
                               toString(paste0(mutations)))
-  cluster_interest = "lineages and variants"
-  cluster_interest2 = "(% lineage and variant)"
+  cluster_interest = "lineages and mutations"
+  cluster_interest2 = "(% mutant)"
 }
 
 if(is.null(lineages) & !is.null(mutations) & !is.null(cut_off)){ 
   
-  inclusion_criteria = paste0("variants ",toString(paste0(mutations)), " and ", cut_off)
+  inclusion_criteria = paste0("mutations",toString(paste0(mutations)), " and ", cut_off)
   cluster_interest = "variants and statistical cut off"
-  cluster_interest2 = "(% variant)"
+  cluster_interest2 = "(% mutant)"
 }
 
 
@@ -284,50 +315,83 @@ if(!is.null(lineages) & is.null(mutations) & !is.null(cut_off)){
 
 if(!is.null(lineages) & !is.null(mutations) & !is.null(cut_off)){ 
   
-  inclusion_criteria = paste0("lineages ",toString(paste0(lineages)), ", variants",
+  inclusion_criteria = paste0("lineages ",toString(paste0(lineages)), ", mutations",
                               toString(paste0(mutations)), ", and ", cut_off)
-  cluster_interest = "lineages, variants, and statistical cut off"
-  cluster_interest2 = "(% lineage and variant)"
+  cluster_interest = "lineages, mutations, and statistical cut off"
+  cluster_interest2 = "(% mutant)"
   }
 
 
 
-# output table ###'
-Ygr2_output = table_outputs(lineage = lineages, mutation = mutations, cut_off = cut_off)
 
-n_cluster = Ygr2_output$cluster_size_Ygr1
-max_growth_rate = Ygr2_output$max_growth_rate_Ygr1
-max_growth_rate2 = Ygr2_output$max_growth_rate_Ygr2 
 
-Ygr2_output = Ygr2 %>% select(lineages, other_lineages, cluster_size_perc, most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, defining_muts)
+## run #####
+Ygr2_out = report_table(csd = s, log_growth_rate_cut_off = log_growth_rate_cut_off)
+names(Ygr2_out) = c("Ygr2_output", "csd_select", "csd_cluster", "kp_nodes", 
+                    "growth_rank", "cmts1", "cmts2", "Ygr2", "growth_rank2")
+#store outputs#### 
+Ygr2_output = Ygr2_out[[1]]
+csd_select = Ygr2_out[[2]]
+csd_cluster = Ygr2_out[[3]]
+kp_nodes = Ygr2_out[[4]]
+growth_rank = Ygr2_out[[5]]
+cmts1 = Ygr2_out[[6]]
+cmts2 = Ygr2_out[[7]]
+Ygr2 = Ygr2_out[[8]]
+growth_rank2 = Ygr2_out[[9]]
 
-colnames(Ygr2_output) = c("Lineages", "Other lineages", "Cluster size (%)", "Most recent tip", "Least recent tip", "Log growth rate", "Growth rate rank", "Defining mutations")
-rownames(Ygr2_output) <- c()
-write.csv(Ygr2_output, glue('{path_to_scanner}/scanner_table_{max_date}_{min_date}.csv'))
+growth_rank = growth_rank2
 
+n_clusters = length(Ygr1$log_rank[Ygr1$logistic_growth_rate > log_growth_rate_cut_off])
+Ygr1$logistic_growth_rate = sprintf(as.numeric(Ygr1$logistic_growth_rate), fmt = '%#.2f')  
+max_growth_rate = max(Ygr1$logistic_growth_rate)
+n_clusters_included = length(Ygr2_output$`Log growth rate`)
+min_growth_rate = min(Ygr2_output$`Log growth rate`)
+max_growth_rate2 = max(Ygr2_output$`Log growth rate`)
 
 
 ```
 
-Table 1 and Figure 1 present some summary data of the sequence data and logistic growth rate analyses for the clusters of interest. We use a logsitic growth rate cut-off of **`r log_growth_rate_cut_off`** to exclude clusters which show an equivalent or reduced growth rate compared to matched control samples from the general population prior to applying inclusion criteria, selecting only clusters with `r inclusion_criteria`. We identify **`r n_clusters`** clusters with a growth rate > **`r log_growth_rate_cut_off`**, with growth rates ranging from **`r log_growth_rate_cut_off`** to **`r max_growth_rate_Ygr1`**. Following the application of inclusion criteria to outputs, we identify **`r n_clusters_included`** clusters with growth rates rangiing from **`r log_growth_rate_cut_off`** to **`r max_growth_rate_Ygr2`** for our `r cluster_interest` of interest. Defining mutations are identified as mutations that are present in > **`r defining_mutations_cut_off`****%** of sequences within a given cluster of interest and are not present in > **`r defining_mutations_cut_off`****%** of sequences in a matched sample from the general population.  
+Table 1 and Figure 1 present some summary data of the sequence data and logistic growth rate analyses for the clusters of interest. We use a logsitic growth rate cut-off of **`r log_growth_rate_cut_off`** to exclude clusters which show an equivalent or reduced growth rate compared to matched control samples from the general population prior to applying inclusion criteria, selecting only clusters with `r inclusion_criteria`. We identify **`r n_clusters`** clusters with a growth rate > **`r log_growth_rate_cut_off`**, with growth rates ranging from **`r log_growth_rate_cut_off`** to **`r max_growth_rate`**. Following the application of inclusion criteria to outputs, we identify **`r n_clusters_included`** cluster with growth rates equal to **`r max_growth_rate2`** for our `r cluster_interest` of interest. Defining mutations are identified as mutations that are present in >= **`r defining_mutations_cut_off`****%** of sequences within a given cluster of interest and are not present in >= **`r defining_mutations_cut_off`****%** of sequences in a matched sample from the general population.  
 
 
 \newpage
 
-*Table 1. Summary information on clusters of interest including logistic growth rate rank, cluster size`r cluster_interest2`, most and least recent tips, growth rates, growth rate rank(out of N = `r n_clusters` clusters) and defining mutations (mutations present in > `r defining_mutations_cut_off`% of sequences in a cluster but not in > `r defining_mutations_cut_off`% of sequences in the matched sequences).*
+*Table 1. Summary information on clusters of interest including logistic growth rate rank, cluster size`r cluster_interest2`, most and least recent tips, growth rates, growth rate rank (out of N = `r n_clusters` clusters) and defining mutations (mutations present in > `r defining_mutations_cut_off`% of sequences in a cluster but not in > `r defining_mutations_cut_off`% of sequences in the matched sequences).*
 <p>&nbsp;</p>
 
 ```{r echo=FALSE, results="asis", message=F, warning=F}
-kbl(Ygr2_output, booktabs = T, align = c(rep('c', 8))) %>% 
+
+if(!is.null(lineages) & !is.null(mutations)){ 
+  
+    kbl(Ygr2_output, booktabs = T, align = c(rep('c', 8))) %>% 
   kable_styling(full_width = T) %>%
-  #column_spec(1, width = "" )%>% 
+  #column_spec(1, width = "10em" )%>% 
   #column_spec(2, width = "" )%>% 
   #column_spec(3, width = "" )%>% 
   #column_spec(4, width = "" )%>% 
   #column_spec(5, width = "" )%>% 
   column_spec(6, width = "1cm" )%>% 
   column_spec(7, width = "1cm" )%>% 
-  column_spec(8, width = "2cm")
+  column_spec(8, width = "1cm")%>% 
+  column_spec(9, width = "1cm")%>% 
+  column_spec(10, width = "2cm")
+
+} else { 
+  
+kbl(Ygr2_output, booktabs = T, align = c(rep('c', 8))) %>% 
+  kable_styling(full_width = T) %>%
+  #column_spec(1, width = "10em" )%>% 
+  #column_spec(2, width = "" )%>% 
+  #column_spec(3, width = "" )%>% 
+  column_spec(4, width = "2cm" )%>% 
+  column_spec(5, width = "2cm" )%>% 
+  column_spec(6, width = "1cm" )%>% 
+  column_spec(7, width = "1cm" )%>% 
+  column_spec(8, width = "1cm")%>% 
+  column_spec(9, width = "2cm")
+  
+  }
 
 
 ```
@@ -336,31 +400,41 @@ kbl(Ygr2_output, booktabs = T, align = c(rep('c', 8))) %>%
 
 <p>&nbsp;</p>
 
-Cluster defining mutations exclude synSNPs, as these are unlikely to be driving higher growth rates, although they are observed in the original analyses and outputs. A figure (Figure 7) with proportions of sequences with defining mutations by cluster is included further in the report. 
+Cluster defining mutations exclude synSNPs, as these are unlikely to be driving higher growth rates, although they are observed in the original analyses and outputs. A figure (Figure 7) with proportions of sequences with defining mutations by cluster is included further in the report. Mutation status is measured as defining (>90% of sequences in cluster of interest and not >90% of sequences in cluster of comparison sample), present or absent. 
 
 ``` {r echo=FALSE, results="asis", message=F, warning=F}
 
-sdf = scanner_data_filter(lineage = lineages, mutation = mutations, cut_off = cut_off)
-freq_plots(lineage = lineages, mutation = mutations, cut_off = cut_off)
+sdf = csd_select
+freq_plots(kp_nodes = kp_nodes, growth_rank = growth_rank2)
 
 ```
-\newpage
+
+
+```{r cum_fig_1,  echo = F}
+ if(length(kp_nodes) > 1){ 
+   
+knitr::include_graphics(glue('{path_to_scanner}cum_samples_{max_date}_{min_date}.png'))
+ 
+   }
+```
  
   ```{r cum_fig,  echo = F}
-knitr::include_graphics(glue('{path_to_scanner}cum_samples_{max_date}_{min_date}.png'))
+knitr::include_graphics(glue('{path_to_scanner}cum_samples_clusters_{max_date}_{min_date}.png'))
 ```
 
-*Figure 1. Cumulative sum of sampled sequences from clusters of interest by sample date.*
+*Figure 1. Cumulative sum of sampled sequences from `r cluster_interest` of interest (top) and clusters of interest (bottom) by sample date.*
 
-Figure 2 shows the frequency of log odds over time of our clusters of interest compared to a matched sample from the general population using a generalised additive model (GAM). 
+
+Figure 2 shows the frequency of log odds over time of our clusters of interest compared to a matched sample from the general population using a generalised additive model (GAM). We match clusters of interest to comaparison samples based on adm2 and sample time, using weights derived from PHE metadata. 
 
 ``` {r echo=FALSE, results="asis", message=F, warning=F}
 
-logodds_plots(lineage = lineages, mutation = mutations, cut_off = cut_off)
-
+amd = merge(amd, wdf, by = "central_sample_id")
+gam_plots(e1 = envs, kp_nodes = kp_nodes, growth_rank = growth_rank2)
 
 ```
 
+\newpage
 
   ```{r gam_map,  echo = F}
 knitr::include_graphics(glue('{path_to_scanner}logodds_{max_date}_{min_date}.png'))
@@ -369,16 +443,16 @@ knitr::include_graphics(glue('{path_to_scanner}logodds_{max_date}_{min_date}.png
 
 *Figure 2. Frequency of log odds of cluster of interest over time. Points represent actual log odds (size shows weight of samples), line represents estimated log odds and shading represents lower and upper bound of GAM estimates (95% CI).* 
 
-\newpage 
 
-Figure 3 and 4 shows the coordinates and logistic growth rates of samples per **cluster** by location in the UK, using longitude and latitude data linked to COGUK sequence data. **`r NA_sequences`** were excluded from regional plots due to missing data on longitude, latitude or outer postcode. Figure 5 shows the sample time ditribution for sequences from clusters of interest. Only the  genomes sequences from the clusters of interest are plotted on the maps.
+Figure 3 and 4 shows the coordinates and logistic growth rates of samples per **cluster** by location in the UK, using longitude and latitude data linked to COGUK sequence data. **29 sequences** were excluded from regional plots due to missing data on longitude, latitude or outer postcode. Figure 5 shows the sample time ditribution for sequences from clusters of interest. Only the  genomes sequences from the clusters of interest are plotted on the maps.
+
 
 ``` {r echo=FALSE, results="asis", message=F, warning=F}
 
-plot_maps(sdf = sdf, path_to_map = "C:/Users/oboyd/Documents/GitHub/variantAnalysis/data/UK_NUTS_1_boundaries.rds")
-#this needs to be in your present directory somewhere
+plot_maps(sdf = csd_cluster, path_to_data = path_to_data)
 
 ```
+
 
   ```{r region_map,  echo = F}
 knitr::include_graphics(glue('{path_to_scanner}region_map_{max_date}_{min_date}.png'))
@@ -388,6 +462,7 @@ knitr::include_graphics(glue('{path_to_scanner}region_map_{max_date}_{min_date}.
 *Figure 3. Locations of sequence samples by region and lineage.*
 
 
+\newpage
 
   ```{r log_map,  echo = F}
 knitr::include_graphics(glue('{path_to_scanner}log_growth_map_{max_date}_{min_date}.png'))
@@ -395,7 +470,7 @@ knitr::include_graphics(glue('{path_to_scanner}log_growth_map_{max_date}_{min_da
 
 *Figure 4. Logistic growth rates (GLM) results from Table 1 by region.* 
 
-\newpage
+
 
   ```{r time_map,  echo = F}
 knitr::include_graphics(glue('{path_to_scanner}sample_time_map_{max_date}_{min_date}.png'))
@@ -403,14 +478,15 @@ knitr::include_graphics(glue('{path_to_scanner}sample_time_map_{max_date}_{min_d
 
 *Figure 5. Sampling dates of sequence samples from clusters of interest plotted by region.* 
 
-\newpage
+We compare the present growth rates to those from previous runs to identify changes occuring over time in lineages or mutations of interest. We select the clusters for `r cluster_interest` of interest with the highest growth rates across all variant scanner runs to identify potential clusters or variants of interest. Figure 6 shows the clusters identified for `r cluster_interest`. 
 
-We compare the present growth rates to those from previous runs to identify changes occuring over time in lineages of interest. We select the clusters for `r cluster_interest` of interest with the highest growth rates across all variant scanner runs to identify potential clusters or variants of interest. Figure 6 shows the clusters identified for `r cluster_interest`. 
+\newpage
 
 ``` {r echo=FALSE, results="asis", message=F, warning=F}
 
-sdf_all = readRDS(glue('{path_to_scanner}sdf_all.rds'))
-gr_plots(sdf = sdf_all, lineage = lineages, mutation = mutations, cut_off = cut_off)
+
+grtp(s = sdf_all)
+
 
 ```
 
@@ -419,22 +495,21 @@ knitr::include_graphics(glue('{path_to_scanner}growth_rate_over_time_{max_date}_
 ```
 *Figure 6. Growth rates over time for lineages of interest. Date represents the most recent sample date and size represents the size of the cluster. Only clusters which contain >50% of lineages of interest are selected for comparison. Shape represents minimum clade size chosen for scanner runs (min = {10,25}). * 
 
-\newpage
-
 We report the proportion of sequences (**>`r prop_mutations` %**) per clusters with mutations of interest present. We exclude synSNPs, as these are unlikely to be driving higher growth rates. These figures include all mutations present within clusters of interest, unlike Table 1 which includes only mutations present in > **`r defining_mutations_cut_off`****%** of sequences within a cluster of interest and not present in > **`r defining_mutations_cut_off`****%** of sequences in the matched sample sequences. 
 
+\newpage 
 
 ``` {r echo=FALSE, results="asis", message=F, warning=F}
 
-mts_plots(sdf = sdf_all, lineage = lineages, mutation = mutations, cut_off = cut_off)
 
+mutations_plots(,cmst2 = cmst2, prop_mutations = prop_mutations, growth_rank = growth_rank2)
 
 ```
 
 
 
   ```{r growth_other,  echo = F, fig.align = 'center'}
-knitr::include_graphics(glue('{path_scanner}mutations_{max_date}_{min_date}.png'))
+knitr::include_graphics(glue('{path_to_scanner}mutations_{max_date}_{min_date}.png'))
 ```
 
 *Figure 7. Proportion of sequences (> `r prop_mutations`%) with mutations of interest across selected clusters.* 
