@@ -433,8 +433,8 @@ mutations_plots = function(cmts2 = cmts2
   
 }
 
-prop_mutations = 0.25
-mutations_plots()
+#~ prop_mutations = 0.25
+#~ mutations_plots()
 
 clock_outlier_plot = function(){ 
   

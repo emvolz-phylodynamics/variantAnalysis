@@ -1,4 +1,4 @@
-library( BayesianTools ) 
+#~ library( BayesianTools ) 
 
 #' Estimate rate that clusters increase or decrease in frequency and transform into selection coefficients for different genotypes
 #' 
@@ -256,7 +256,7 @@ hier_bayes_pairwiseLogistic_frequency <- function(s, d
 , minclustsize = 10 
 )
 {
-
+library( BayesianTools ) 
 	MINT <- -Inf 
 	MAXT <- 2020.25
 
@@ -736,7 +736,6 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 #' @export 
 variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
 {
-stop('Not implemented: Need to update to handle weeks in 2021')
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
 	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
@@ -748,8 +747,11 @@ stop('Not implemented: Need to update to handle weeks in 2021')
 	rownames(s) <- NULL
 	s <- s[ order(s$sample_time ) , ]
 	
-	if ( !('epi_week' %in% colnames(s)))
+	if ( !('epi_week' %in% colnames(s))){
 		s$epi_week <- lubridate::epiweek( s$sample_time )
+		i <-  (year( s$sample_date ) < 2021) & (s$epi_week < 53)
+		s$epi_week[ i ] <- s$epi_week[ i ] + 53
+	}
 	
 	weeks = seq( min ( s$epi_week ) , max( s$epi_week ))
 	weekstarts = sapply( weeks, function(x) min( na.omit( s$sample_time[ s$epi_week==x ] ) ) )

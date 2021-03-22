@@ -546,5 +546,5 @@ get_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.r
   msg <- mlskygrid(tr3, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sts[tr3$tip.label] , 
                    res = 10, ncpu = 3)
   
-  msg
+  list( mlesky = msg, tree = tr3 )
 }

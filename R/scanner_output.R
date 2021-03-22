@@ -28,7 +28,6 @@
 #' @param min_date Least recent tip sample date from scanner run 
 #' @param path_to_save Path to directory to save markdown in, if NULL will save in current working directory  
 #' @export 
-
 scanner_output = function(lineages = "B.1.525", mutations = NULL, cut_off = NULL, 
          path_to_scanner = "../min_25/3_month/", 
          scanner_run_date = "2021-03-19",
@@ -57,8 +56,8 @@ scanner_output = function(lineages = "B.1.525", mutations = NULL, cut_off = NULL
 }
 
 
-print(Sys.time())
-scanner_output()
-print(Sys.time())
+#~ print(Sys.time())
+#~ scanner_output()
+#~ print(Sys.time())
 #' to run: scanner_output()
 

@@ -8,7 +8,7 @@
 
 
 report_table = function(csd = s, 
-                        log_growth_rate_cut_off = log_growth_rate_cut_off
+                        log_growth_rate_cut_off = log_growth_rate_cut_off, 
                         lineages = lineages, 
                         mutations = mutations, 
                         cut_off = cut_off, 
