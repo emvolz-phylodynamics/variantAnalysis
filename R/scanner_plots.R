@@ -3,6 +3,11 @@
 #'  
 
 
+#'
+#'
+#'dedup function
+
+dedup_data = function(s = PHE)
 
 
 
@@ -231,9 +236,7 @@ variable_frequency_day_report <- function(s
 
 
 
-logistic_growth_stat2 <- function(u
-                                  , e1 = envs
-                                  , generation_time_scale = 6.5/365)
+logistic_growth_stat2 <- function(u, e1 = envs, generation_time_scale = 6.5/365)
 {
   ta = get_comparator_sample(u) 
   if ( is.null( ta ))
@@ -248,6 +251,7 @@ logistic_growth_stat2 <- function(u
                   sequence_name = c(ta,tu) )
   X$weights = ifelse(X$sequence_name %in% amd$sequence_name,
                      amd$coverage_weight[amd$sequence_name %in% c(ta,tu)], NA )
+  X$lineage = growth_rank[names(growth_rank) == u]
   X
   
 }
@@ -418,13 +422,10 @@ mutations_plots = function(cmts2 = cmts2
   
   cms_data_n = cms_data %>% 
     filter(str_detect(mutants, "N:"))
-  s_in = cms_data_s$mutants
-  n_in = cms_data_n$mutants
-  g_in = c(as.character(s_in), as.character(n_in))
   syns_out = cms_data_syn$mutants
   
   
-  plot <- ggplot(cms_data[cms_data$mutants %nin%  syns_out & cms_data$props >= prop_mutations & cms_data$mutants %in% g_in,], aes(x=reorder(mutants, props), props, fill=as.factor(gr_muts)))
+  plot <- ggplot(cms_data[cms_data$mutants %nin%  syns_out & cms_data$props >= prop_mutations,], aes(x=reorder(mutants, props), props, fill=as.factor(gr_muts)))
   plot <- plot + geom_bar(stat = "identity", position = 'dodge') + theme_classic()+ facet_wrap(~gr_muts, scale = "free") + scale_fill_brewer(palette = "Dark2")
   plot <- plot + labs(y = "Proportion of sequences", x = "Mutations", fill = "Lineage") + theme(axis.text.x = element_text(angle = 45, hjust = 1))
   plot <- plot + theme(legend.position = "none")
