@@ -23,19 +23,21 @@
 #' of sequences in comparison general population cluster that must have a specific mutation for it to be considered
 #' a defining mutation of a cluster of interest
 #' @param prop_mutation Proportion of sequences (%) with mutations of interest across selected clusters
+#' @param prop_cluster Proportion of cluster (%) which much include lineage/mutation of interest to be included
 #' @param max_date Most recent tip sample date from scanner run 
 #' @param min_date Least recent tip sample date from scanner run 
 #' @param path_to_save Path to directory to save markdown in, if NULL will save in current working directory  
 #' @export 
 
 scanner_output = function(lineages = "B.1.525", mutations = NULL, cut_off = NULL, 
-         path_to_scanner = "C:/Users/oboyd/Documents/COGUK_server/min_25/3_month/", 
+         path_to_scanner = "../min_25/3_month/", 
          scanner_run_date = "2021-03-19",
-         path_to_data = "C:/Users/oboyd/Documents/COGUK_server/", path_to_metadata = NULL, 
+         path_to_data = "../", path_to_metadata = NULL, 
          log_growth_rate_cut_off = 0.0, defining_mutations_cut_off = 90, 
          prop_mutations = 25, path_to_save = NULL, min_size = 25, max_size = 20000,
          max_date = "2021-03-04", min_date = "2020-11-01", 
-         include_pillar1 = FALSE, generation_time = 6.5) { 
+         include_pillar1 = FALSE, generation_time = 6.5, 
+         prop_cluster = 10) { 
   
   library(glue)
   
