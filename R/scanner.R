@@ -50,8 +50,10 @@ print(paste('Starting ', Sys.time()) )
 	}
 	
 	# load coguk algn md 
-	amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
-	  , stringsAs=FALSE )
+	#amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE)  , stringsAs=FALSE )
+	#cog_global_2021-03-23_consortium.csv
+	#~ 	cog_id
+	amd <- read.csv( list.files(  paste0( path_to_data , '/metadata/') , patt = 'cog_global_[0-9\\-]+_consortium.csv', full.names=TRUE)  , stringsAs=FALSE )
 	amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
 	
 	# exclude global 
@@ -59,9 +61,10 @@ print(paste('Starting ', Sys.time()) )
 	# exclude p1 
 	if ( !include_pillar1 )
 	{
-		lhls <- paste0( '.*/', c( 'MILK', 'ALDP', 'QEUH', 'CAMC'), '.*')
-		lhpatt = paste( lhls, collapse = '|' )
-		amd <- amd[ grepl(amd$sequence_name, patt = lhpatt ) , ] 
+		amd <- amd[ amd$pillar_2 , ]
+		#lhls <- paste0( '.*/', c( 'MILK', 'ALDP', 'QEUH', 'CAMC'), '.*')
+		#lhpatt = paste( lhls, collapse = '|' )
+		#amd <- amd[ grepl(amd$sequence_name, patt = lhpatt ) , ] 
 	}
 	
 	# sample time 
@@ -569,7 +572,8 @@ inner_compare_age_groups <- function(u=406318, fast_return=F){
 #' @export 
 get_clusternode_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds")) 
 {
-  require(mlesky)
+  library(mlesky)
+  library( treedater )
   
   e1 = as.environment( scanner_env )
   attach( e1 )
