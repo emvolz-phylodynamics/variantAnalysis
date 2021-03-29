@@ -274,8 +274,17 @@ print(paste('Starting ', Sys.time()) )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	message('saving image ... ' ) 
-	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y 
+	e0 = list( descendantSids = descendantSids
+	  , ancestors = ancestors
+	  , sts = sts 
+	  , tre = tre
+	  , descendantTips = descendantTips
+	  , descendants = descendants 
+	  , Y = Y 
 	  , nodedata = nodedata
+	  , ndesc = ndesc
+	  , descsts = descsts 
+	  , amd = amd 
 	)  
 	saveRDS(e0, file=ofn3)
 	message( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.'  ) )

@@ -2,10 +2,12 @@
 % Please edit documentation in R/scanner.R
 \name{inner_get_comparator_sample}
 \alias{inner_get_comparator_sample}
-\title{internal function calls only, assuming amd, ndesc, descsts are already in the environment}
+\title{internal function calls only, assuming amd, ndesc, descsts are already in the environment
+TODO deprecate}
 \usage{
 inner_get_comparator_sample(u, nX = 5)
 }
 \description{
 internal function calls only, assuming amd, ndesc, descsts are already in the environment
+TODO deprecate
 }

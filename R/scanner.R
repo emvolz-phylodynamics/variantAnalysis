@@ -283,7 +283,7 @@ condense_clusters <- function( scanner_env, threshold_growth = .5 , candidate_no
 #' internal function calls only
 inner_condense_clusters <- function( Y, threshold_growth = .5 , candidate_nodes = NULL){
   if ( is.null( candidate_nodes )){
-    candidate_nodes = cnodes = Y$node_number[ Y$logistic >= threshold_growth ]
+    candidate_nodes = cnodes = Y$node_number[ Y$logistic_growth_rate >= threshold_growth ]
   }
   stopifnot( length( cnodes ) > 0 )
   keep <- sapply( cnodes, function(u){
@@ -318,7 +318,13 @@ cluster_muts = function( Y
 	e1 = as.environment( scanner_env )
 	attach( e1 )
 	
-	Ygr1 = Y[ Y$node_number %in% nodes , ] 
+	sdnodes = setdiff( nodes, Y$node_number )
+	if ( length( sdnodes ) > 0 ){
+		warning( paste('Some input nodes not found in scanner table', sdnodes, collapse = ', ') ) 
+	}
+	nodes1 <- setdiff( nodes, sdnodes ) #intersect( Y$node_number, nodes )
+	#Ygr1 = Y[ Y$node_number %in% nodes , ] 
+	Ygr1 <- Y[ match( nodes1, Y$node_number ), ]
 	
 	mdf = read.csv( mutfn, stringsAs=FALSE )
 	
@@ -349,9 +355,18 @@ cluster_muts = function( Y
 	if ( length(cms) > 1 ){
 		ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
 	} 
+	names( ress2 ) <- Ygr1$node_number 
 	ress2
 }
-#~ cluster_muts( Y, ey, nodes = 449569 )
+#~ cmuts = cluster_muts( Y
+#~  , e0
+#~  , ccnodes1
+#~  , mutfn = MUTFN #
+#~  , min_seq_contrast = 1 # sequences in ancestor clade
+#~  , overlap_threshold = .9
+#~ )
+
+
 
 
 
@@ -361,14 +376,40 @@ cluster_muts = function( Y
 get_comparator_sample <- function( u , scanner_env, nX = 5 ) 
 {
 	e1 = as.environment( scanner_env )
-	attach( e1 )
-	 ta <- inner_get_comparator_sample(u, nX)
-	 detach( e1 )
-	 ta
+	ndesc = e1$ndesc 
+	amd = e1$amd 
+	descsts = e1$descsts 
+	descendantSids = e1$descendantSids
+	
+	if ( ('adm2' %in% colnames(amd))  &  (!('region' %in% colnames(amd) )) ){
+		amd$region <- amd$adm2
+	}
+	# weight for region
+	w = table ( amd$region[ match( descendantSids[[u]]  , amd$sequence_name ) ]  )  
+	w = w [ names(w)!='' ]
+	w = w / sum( w ) 
+
+	nu <- ndesc[u] 
+	tu =  descendantSids[[u]] 
+	stu = descsts [[ u ]]
+	minstu = min(na.omit(stu ))
+	maxstu = max(na.omit(stu) )
+	
+	amd1 = amd[ (amd$sample_time >= minstu) & (amd$sample_time <= maxstu), c('sequence_name', 'sample_date', 'region') ]
+	amd1 <- amd1[ !(amd1$sequence_name %in% tu) , ]
+	amd1 <- amd1[ amd1$region %in% names( w ) , ]
+	na = min ( nrow( amd1 ) , nu * nX )
+	if ( na < nu ) 
+		return ( NULL )
+	amd1$w = w[ amd1$region ] 
+	ta = sample( amd1$sequence_name, replace=FALSE, size = na , prob = amd1$w ) 
+	ta
+	
+	ta
 }
 
 #' internal function calls only, assuming amd, ndesc, descsts are already in the environment
-#'
+#' TODO deprecate 
 inner_get_comparator_sample <- function( u, nX = 5 ) 
 {
   # weight for adm2 
@@ -526,7 +567,7 @@ inner_compare_age_groups <- function(u=406318, fast_return=F){
 #'
 #'
 #' @export 
-get_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds")) 
+get_clusternode_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds")) 
 {
   require(mlesky)
   
@@ -547,4 +588,96 @@ get_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.r
                    res = 10, ncpu = 3)
   
   list( mlesky = msg, tree = tr3 )
+}
+
+#'
+#'
+#' @export 
+get_clusternode_gam <- function( u0, Y, e0, ... ){
+	tu = strsplit( Y$tips[ Y$node_number == u0 ], '\\|' )[[1]]
+	ta = get_comparator_sample( u0, e0, nX = 5 ) 
+	s <- e0$amd 
+	s <- s[ s$sequence_name  %in% c(tu, ta ), ]
+	s$genotype <- 'non-Cluster'
+	s$genotype[s$sequence_name %in% tu] <- paste( 'Cluster', u0 )
+	library( ggplot2 )
+	vfd <- variantAnalysis::variable_frequency_day(s, variable = "genotype", value = paste( 'Cluster', u0 ), ...) 
+	vfd
+}
+
+#'
+#'
+#' @export 
+get_clusternode_gam_maps <- function(u0, Y, e0 )
+{
+	s1 <- e0$amd
+	if (  ( 'epi_week' %in% colnames(s1))  &  (!('epiweek' %in% colnames(s1) ) ) ){
+		s1$epiweek<- s1$epi_week 
+	}else if  (  !( 'epi_week' %in% colnames(s1))  &  (!('epiweek' %in% colnames(s1) ) ) ){
+		ew <- lubridate::epiweek( as.Date(s1$sample_date)  )
+		i <- with( s1 ,  (year(as.Date(s1$sample_date)) > 2020)  &  (ew < 53)  )
+		ew[ i ] <- 53 + ew[i] 
+		s1$epiweek <- ew 
+	}
+	tu = strsplit( Y$tips[ Y$node_number == u0 ], '\\|' )[[1]]
+	
+	library(raster)
+	library( spdep )
+	library( cowplot ) 
+	library( ggplot2 )
+
+	shp <- shapefile(system.file('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp', package='variantAnalysis') )
+	shp <- shp[ shp$lad19cd %in% unique( s1$ltlacd ), ]
+	shpdf <- droplevels(as(shp, 'data.frame'))
+	nb <- poly2nb(shp, row.names = shpdf$lad19cd)
+	names(nb) <- attr(nb, "region.id")
+
+	s1$VUI <- FALSE
+	s1$VUI[s1$sequence_name %in% tu] <- TRUE
+	s1$n <- 1 
+	s2 = merge( aggregate( VUI ~ epiweek*ltlacd,  data = s1 , sum )
+	 , aggregate( n ~ epiweek*ltlacd,  data = s1 , length ) 
+	 , by = c('epiweek' , 'ltlacd' )
+	)
+	toadd <- setdiff( as.factor( s$ltlacd ) , s2$fac_ltlacd )
+	s2 <- rbind( s2
+		, data.frame( epiweek = max(s2$epiweek), ltlacd = toadd, VUI=0, n = 0 ) 
+	)
+	s2$fac_ltlacd = as.factor( s2$ltlacd )
+	s2 <- na.omit( s2 )
+	m1 = mgcv::gam( cbind(VUI, n - VUI) ~ s(epiweek) + s(fac_ltlacd, bs='mrf', xt=list(nb=nb), k = 50), family = binomial(link='logit'), data = s2,  method = 'REML', ctrl=gam.control(nthreads = 6))
+
+	s2$logodds = predict( m1 )
+	s2s <- split( s2, s2$ltlacd )
+	 
+	shp0 <- shapefile(system.file('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp', package='variantAnalysis') )
+	shp0 <- fortify(shp0, region = 'lad19cd')
+	maxfreq <- max( with( s2,  exp( logodds ) / ( 1 + exp( logodds ) )  ))
+	plmap = function(EPIWEEK, cscale = FALSE ){
+		shp = shp0 
+		idf2 <- do.call( rbind, lapply( s2s, function(x)  x[x$epiweek == EPIWEEK  , ] ))
+		idf2$id <- idf2$ltlacd
+		shp <- merge(shp, idf2, by = 'id', all.x = TRUE)
+		shp <- dplyr::arrange(shp, order)
+		shp$frequency_VUI <- exp( shp$logodds ) / ( 1 + exp( shp$logodds ) )
+		shp1 = shp 
+		p0 <- ggplot(data = shp1, aes(x = long, y = lat, group = group, fill = frequency_VUI)) + geom_polygon() + coord_equal() + theme_void() + theme(legend.title = element_blank()) + ggtitle( glue( 'Epi week {EPIWEEK}' )) + scale_fill_gradient(low ='lightgrey', high ='red' ,limits = c(0,maxfreq))
+		
+		# '#f8766dff' , '#00bfc4ff'
+		#  '#cc993373' , '#3366cc64' 
+		if (!cscale) 
+			p0 <- p0 + theme( legend.pos = 'none' )
+		p0
+	}
+
+	MAXWEEK = max( s1$epiweek[s1$VUI] )-1
+	MINWEEK = MAXWEEK - 8
+	pls = lapply( MINWEEK:MAXWEEK, plmap )
+	pls[[6]] <- plmap( (MINWEEK:MAXWEEK)[6], TRUE ) 
+
+	p = plot_grid( plotlist = pls , nrow = 3 )
+	lwp = plmap( MAXWEEK, TRUE ) + ggtitle(paste('Cluster', u0)) 
+	lwp2 = lwp + theme( legend.key.size = unit(.25, "in"), legend.key.width = unit(0.1,"in") )
+
+	list( lwp2, p )
 }

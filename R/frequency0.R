@@ -841,6 +841,7 @@ variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  
 #' @export 
 variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
 {
+	library( ggplot2 )
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
 	stopifnot( ('sample_date' %in% colnames(s))  |  ('sample_time' %in% colnames(s)) )
