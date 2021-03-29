@@ -61,6 +61,8 @@ print(paste('Starting ', Sys.time()) )
 	# exclude p1 
 	if ( !include_pillar1 )
 	{
+		amd$pillar_2 <- as.logical( amd$pillar_2 ) 
+		amd <- amd[ !is.na( amd$pillar_2 ) , ] 
 		amd <- amd[ amd$pillar_2 , ]
 		#lhls <- paste0( '.*/', c( 'MILK', 'ALDP', 'QEUH', 'CAMC'), '.*')
 		#lhpatt = paste( lhls, collapse = '|' )
