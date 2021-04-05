@@ -15,8 +15,9 @@
 #' @param prop_stratified proportion of sample to reserve for stratified sampling 
 #' @param deduplicate if TRUE, duplicate samples will be removed 
 #' @export 
-sample_lineage <- function( 
-	lineage = 'B.1.1.7' 
+sample_lineage <- function( root_dir = '..' ## '/cephfs/covid/bham/climb-covid19-volze'
+	 , regenerate_ML_tree = F
+	 , lineage = 'B.1.1.7' 
 	 , weightsfn = '/cephfs/covid/bham/climb-covid19-volze/b0-weightsdf-2021-01-04.csv'
 	 , mindate = as.Date( '2020-10-15' ) 
 	 , maxdate = as.Date( Sys.Date() - 12 )
@@ -35,7 +36,7 @@ sample_lineage <- function(
 	wdf = na.omit( read.csv( weightsfn , stringsAs=FALSE )  ) 
 
 
-	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	civetfn =  list.files(  paste0(root_dir, '/phylolatest/civet/' ), patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
 	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
 	civmd$sample_date <- as.Date( civmd$sample_date )
@@ -61,10 +62,12 @@ sample_lineage <- function(
 	s$epiweek <- epiweek(  s$sample_date )
 
 	# load tree and deduplicate 
-	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0 = read.tree( list.files( paste0(root_dir, '/phylolatest/trees'), patt = '.*newick', full=T ))
 	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
 	tr1 <- keep.tip( tr0, s$central_sample_id )
 
+	
+	# t1 = Sys.time()
 	if ( deduplicate )
 	{
 		if ( Ntip (tr1) > 6e3 ){
@@ -80,6 +83,10 @@ sample_lineage <- function(
 		s <- s[ order( s$sample_time ) , ]
 		.s <- s[ !duplicated( s$cluster ), ]
 	}
+	# t2 = Sys.time()
+	# t2-t1
+	
+	
 
 	# main sampling func
 	.sample <- function( n ) 
@@ -103,25 +110,44 @@ sample_lineage <- function(
 	# sample over reps, ns; 
 	Z <- list() 
 	for ( n in ns ){
-		X = do.call( rbind, lapply(1:nreps, function(k){
-			y = data.frame( central_sample_id = .sample( n ), replicate = k , sample_size = n )
-		}))
-		Z[[ as.character(n) ]] <- X
-		write.csv( X, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.csv')  )
-	}
+	  X = do.call( rbind, lapply(1:nreps, function(k){
+	    y = data.frame( central_sample_id = .sample( n ), replicate = k , sample_size = n )
+	  }))
+	  Z[[ as.character(n) ]] <- X
+	  write.csv( X, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.csv')  )
+	} 
+	
+	
+	
 	#make tres
+	# n.b. Z[[1]] has length nreps
+	
+	if(regenerate_ML_tree) {
+	  # algn_fn <- 	list.files(  paste0(root_dir, '/phylolatest/civet/' ), patt = 'cog_global_[0-9\\-]+_alignment.fasta', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	  # t0_readalgn = Sys.time()
+	  # algn <- read.dna(algn_fn, format = 'fasta' ) 
+	  # t1_readalgn = Sys.time()
+	  # 
+	  # t1_readalgn-t0_readalgn
+	}
+	
+	
+	
 	for (X in Z ){
-		Xs <- split( X, X$replicate )
-		tres <- lapply( Xs, function(y){
-			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
-		})
-		class( tres ) <- 'multiPhylo' 
-		write.tree( tres, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.nwk')  )
+	  if(regenerate_ML_tree) {
+  } else {
+	    
+	    Xs <- split( X, X$replicate )
+	    tres <- lapply( Xs, function(y){
+	      keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
+	    })
+	    class( tres ) <- 'multiPhylo' 
+	    write.tree( tres, file = glue('sampler1_{lineage}_{Sys.Date()}_n={X$sample_size[1]}{ifelse(deduplicate,"-deduped","")}.nwk')  )}
 	}
 	
 	list(
-	 trees = tres 
-	 , tables = Z
+	  trees = tres 
+	  , tables = Z
 	)
 }
 
@@ -137,14 +163,15 @@ sample_lineage <- function(
 #' @param deduplicate not implemented 
 #' @export 
 matched_sample <- function( 
-	csids 
+  root_dir = '..' ## '/cephfs/covid/bham/climb-covid19-volze'
+	, csids 
 	 , lineage = NULL
 	 , not_lineage = 'B.1.1.7'
 	 , nreps = 1 
 	 , n_multiplier = 1
 	 , deduplicate = FALSE 
 ) {
-stopifnot( !deduplicate ) #not implemented
+  stopifnot( !deduplicate ) #not implemented
 
 #~ csids <- read.tree('sampler1_B.1.1.7_2021-01-04_n=500-deduped.nwk')[[1]]$tip.label 
 #~ lineage = NULL
@@ -157,14 +184,14 @@ stopifnot( !deduplicate ) #not implemented
 	library( ape ) 
 	library( glue )
 		
-	civetfn =  list.files(  '../phylolatest/civet/' , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
+	civetfn =  list.files( paste0(root_dir, '/phylolatest/civet/') , patt = 'cog_global_[0-9\\-]+_metadata.csv', full.names=TRUE) #'../phylolatest/civet/cog_global_2020-12-01_metadata.csv'
 	civmd = read.csv( civetfn , stringsAs=FALSE , header=TRUE )
 	civmd$central_sample_id <-  sapply( strsplit( civmd$sequence_name , split='/' ) , '[', 2 ) # for linkage 
 	civmd$sample_date <- as.Date( civmd$sample_date )
 	civmd$sample_time <- decimal_date( civmd$sample_date ) 
 	
 	# load majora  '../latest/majora.20201204.metadata.matched.tsv' 
-	jdf <- read.csv( list.files(  '../latest/' , patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
+	jdf <- read.csv( list.files( paste0(root_dir, '/latest/' ), patt = 'majora.[0-9]+.metadata.matched.tsv', full.names=TRUE)  
 	, stringsAs=FALSE, sep = '\t' ) 
 	
 	# combine
@@ -181,7 +208,7 @@ stopifnot( !deduplicate ) #not implemented
 	s$year <- year ( s$sample_date )
 
 	# load tree and deduplicate 
-	tr0 = read.tree( list.files( '../phylolatest/trees', patt = '.*newick', full=T ))
+	tr0 = read.tree( list.files( paste0(root_dir,'/phylolatest/trees'), patt = '.*newick', full=T ))
 	tr0$tip.label <-  sapply( strsplit( tr0$tip.label, split='/' ), '[', 2 )
 	tr1 <- keep.tip( tr0, s$central_sample_id )
 	
@@ -216,7 +243,7 @@ stopifnot( !deduplicate ) #not implemented
 			y = data.frame( central_sample_id = csids_control, replicate = k , sample_size = length( csids_control) )
 			y
 		}))
-		write.csv( X, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
+		write.csv( X, file = glue('{lineage}_matchSample_not{not_lineage}_{Sys.Date()}.csv')  )
 	}
 	#make tres
 	{
@@ -225,7 +252,7 @@ stopifnot( !deduplicate ) #not implemented
 			keep.tip( tr1, intersect(  y$central_sample_id, tr1$tip.label )  )
 		})
 		class( tres ) <- 'multiPhylo' 
-		write.tree( tres, file = glue('matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
+		write.tree( tres, file = glue('{lineage}_matchSample_not{not_lineage}_{Sys.Date()}.nwk')  )
 	}
 	
 	list(
