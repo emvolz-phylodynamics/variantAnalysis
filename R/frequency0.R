@@ -736,6 +736,7 @@ cluster_origin_comparison2 <- function(s, uk_lineage = NULL, genotype = NULL, mi
 #' @export 
 variable_frequency_epiweek <- function(s, variable='genotype', value='mutant',  mint = -Inf , maxt = Inf, detailed=TRUE , form = y~s(sample_time, bs = 'gp', k = 5) )
 {
+	stop( 'Not implemented; needs revisions') 
 	library( lubridate ) 
 	# remove sample times outside of mint and maxt
 	if ( ( 'sample_date' %in% colnames(s) )  & !('sample_time' %in% colnames(s) ) )
@@ -881,12 +882,14 @@ variable_frequency_day <- function(s, variable='genotype', value='mutant',  mint
 		n1 <- sum( .s2[[variable]]==value)
 		n2 <- n - n1 
 		ef = n1 / n 
-		c(lb= log(lb/(1-lb)), ub = log(ub/(1-ub)) , n = n, weights = f*(1-f)/n, logodds = log(ef / ( 1 - ef )) )
+		c(lb= log(lb/(1-lb)), ub = log(ub/(1-ub)) , n = n
+		  , weights = 1 / sqrt( f*(1-f)/n )
+		  , logodds = log(ef / ( 1 - ef )) )
 	})) )
 	
 	#, weight=weights
 	pl = ggplot() + 
-		geom_point( aes( x = as.Date( date_decimal( time ) ), y = logodds, size=weights ),  data= estdf)  + 
+		geom_point( aes( x = as.Date( date_decimal( time ) ), y = logodds, size=n ),  data= estdf)  + 
 		theme_minimal() +
 		theme( legend.pos='' ) +
 		xlab('') + 
