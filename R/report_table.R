@@ -4,16 +4,7 @@
 #'
 #'@requires lineages, mutations, cut_off, sequence scanner data, Ygr1
 
-
-
-
-report_table = function(csd = s, 
-                        log_growth_rate_cut_off = log_growth_rate_cut_off, 
-                        lineages = lineages, 
-                        mutations = mutations, 
-                        cut_off = cut_off, 
-                        prop_cluster = prop_cluster, 
-                        defining_mutations_cut_off = defining_mutations_cut_off) { 
+report_table = function(csd = s, lineages, mutations, cut_off, Ygr1) { 
 
   
   #just lineages 
@@ -103,29 +94,26 @@ report_table = function(csd = s,
     max_growth_rate = sprintf(as.numeric(max(Ygr2$logistic_growth_rate)), fmt = '%#.2f') 
     n_clusters_included = length(cluster_ids)
     cmts1 = cluster_muts(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
-    cmts2 = cluster_muts_new(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cmts2 = cluster_muts_all(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cdels1 = cluster_dels(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cdels2 = cluster_dels_all(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
     names(cmts1) = sort(kp_nodes)
     names(cmts2) = sort(kp_nodes)
     #remove synsnps 
-    e484k = list()
-    s494p = list()
-    l18f = list()
-    e484k_all = list()
-    s494p_all = list()
-    sl18f_all = list()
+    muts = list()
+    muts_all = list()
     for(i in 1:length(Ygr2$log_rank)) { 
       
       cmts1[[i]] = cmts1[[i]][!str_detect(cmts1[[i]],pattern="synSNP")]
-      e484k[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="E484K")]
-      l18f[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="L18F")]
-      s494p[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="S494P")]
+      muts[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern= moc)]
+
       cmts3 = names(cmts2[[i]])
-      e484k_all[[i]] = cmts3[str_detect(cmts3,pattern="E484K")]
-      sl18f_all[[i]] = cmts3[str_detect(cmts3,pattern="L18F")]
-      s494p_all[[i]] = cmts3[str_detect(cmts3,pattern="S494P")]
+      muts_all[[i]] = cmts3[str_detect(cmts3,pattern= moc)]
+
     }
-    names(e484k) = sort(kp_nodes)
-    names(e484k_all) = sort(kp_nodes)
+    
+    names(muts) = kp_nodes
+    names(muts_all) = kp_nodes
     
     Ygr2 = list() 
     
@@ -142,9 +130,13 @@ report_table = function(csd = s,
         
         if(Ygr2[[j]]$percent[Ygr2[[j]]$log_rank == i] < 100){ 
           
+          other_perc = glue('({as.integer(table(csd_lin[[as.character(i)]]$lineage_muts[csd_lin[[as.character(i)]]$lineage_muts 
+                                                                     %nin% unique(Ygr2[[j]]$sel_lineage)])/nrow(csd_lin[[as.character(i)]])*100)})')
+          other_lin = names(table(csd_lin[[as.character(i)]]$lineage_muts[csd_lin[[as.character(i)]]$lineage_muts 
+                                                                          %nin% unique(Ygr2[[j]]$sel_lineage)])/nrow(csd_lin[[as.character(i)]]))
+          
           Ygr2[[j]]$other_lineages[Ygr2[[j]]$log_rank == i] = 
-            paste(unique(csd_lin[[as.character(i)]]$lineage_muts[csd_lin[[as.character(i)]]$lineage_muts 
-                                                           %nin% unique(Ygr2[[j]]$sel_lineage)]), 
+            paste(glue('{other_lin}{other_perc}'), 
                   collapse = ' ')
         } else { 
           
@@ -185,27 +177,31 @@ report_table = function(csd = s,
     for(i in kp_nodes){ 
       
       Ygr2$defining_muts[Ygr2$cluster_id == i] = paste(cmts1[[as.character(i)]], collapse = ' ') 
-      Ygr2$e484k_in[Ygr2$cluster_id == i] = ifelse(is_empty(e484k[[as.character(i)]]) & 
-                                                  is_empty(e484k_all[[as.character(i)]]), "Absent", 
-                                                ifelse(is_empty(e484k[[as.character(i)]]) & e484k_all[[as.character(i)]] =="S:E484K", "Present", "Defining"))
+      Ygr2$defining_dels[Ygr2$cluster_id == i] = paste(cdels1[[as.character(i)]], collapse = ' ')
+      Ygr2$muts_in[Ygr2$cluster_id == i] = ifelse(is_empty(muts[[as.character(i)]]) & 
+                                                  is_empty(muts_all[[as.character(i)]]), glue('{moc} Absent'), 
+                                                ifelse(is_empty(muts[[as.character(i)]]) & muts_all[[as.character(i)]] == moc, glue('{moc} Present'), glue('{moc} Defining')))
       
     }
     
     Ygr2 = Ygr2[Ygr2$logistic_growth_rate > 0,]
     Ygr2$logistic_growth_rate = sprintf(as.numeric(Ygr2$logistic_growth_rate), fmt = '%#.2f')  
     Ygr2$percent = as.integer(Ygr2$percent) 
-    Ygr2 = Ygr2[Ygr2$percent > prop_percent,]
+    Ygr2 = Ygr2[Ygr2$percent > prop_cluster,]
     Ygr2$cluster_size_perc = glue('{Ygr2$cluster_size}({Ygr2$percent})')
     Ygr2$grouping = glue('{Ygr2$sel_lineage},{Ygr2$log_rank}')
     
     
-    Ygr2_output = Ygr2 %>% select(sel_lineage, other_lineages, cluster_size_perc, most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, e484k_in, defining_muts)
+    Ygr2_output = Ygr2 %>% select(sel_lineage, cluster_size_perc, other_lineages,  most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, muts_in, defining_dels, defining_muts)
     
-    colnames(Ygr2_output) = c("Lineages", "Other lineages", "Cluster size (%)", "Most recent tip", "Least recent tip", "Log growth rate", "Growth rate rank", "E484K status", "Defining mutations")
+    colnames(Ygr2_output) = c("Selection", "Size (%)", "Lineages (%)","Most recent tip", 
+                              "Least recent tip", "Log growth rate", "Growth rate rank", 
+                              "Mutation status", "Defining deletions", "Defining mutations")
     rownames(Ygr2_output) <- c()
 
     
   }
+  
   
   # just mutations 
   if(is.null(lineages) & !is.null(mutations)){  
@@ -306,29 +302,19 @@ report_table = function(csd = s,
     max_growth_rate = sprintf(as.numeric(max(Ygr2$logistic_growth_rate)), fmt = '%#.2f') 
     n_clusters_included = length(cluster_ids)
     cmts1 = cluster_muts(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
-    cmts2 = cluster_muts_new(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cmts2 = cluster_muts_all(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cdels1 = cluster_dels(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cdels2 = cluster_dels_all(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
     names(cmts1) = sort(kp_nodes)
     names(cmts2) = sort(kp_nodes)
-    #remove synsnps 
-    e484k = list()
-    s494p = list()
-    l18f = list()
-    e484k_all = list()
-    s494p_all = list()
-    sl18f_all = list()
+    names(cdels1) = sort(kp_nodes)
+    names(cdels2) = sort(kp_nodes)
+
     for(i in 1:length(Ygr2$log_rank)) { 
       
       cmts1[[i]] = cmts1[[i]][!str_detect(cmts1[[i]],pattern="synSNP")]
-      e484k[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="E484K")]
-      l18f[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="L18F")]
-      s494p[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="S494P")]
       cmts3 = names(cmts2[[i]])
-      e484k_all[[i]] = cmts3[str_detect(cmts3,pattern="E484K")]
-      sl18f_all[[i]] = cmts3[str_detect(cmts3,pattern="L18F")]
-      s494p_all[[i]] = cmts3[str_detect(cmts3,pattern="S494P")]
     }
-    names(e484k) = sort(kp_nodes)
-    names(e484k_all) = sort(kp_nodes)
     
     dpa = list()
     dpa2 = list() 
@@ -360,7 +346,9 @@ report_table = function(csd = s,
       for(i in cluster_ids) {
         
         Ygr2[[j]]$percent[Ygr2[[j]]$log_rank == i] = perc_all[[j]]$percent[perc_all[[j]]$log_rank == i]
-        Ygr2[[j]]$lineages[Ygr2[[j]]$log_rank == i] = paste(unique(csd_lin[[as.character(i)]]$lineage_muts), collapse = ' ')
+        lins_perc = glue('({as.integer(table(csd_lin[[as.character(i)]]$lineage_muts)/nrow(csd_lin[[as.character(i)]])*100)})')
+        lins = names(table(csd_lin[[as.character(i)]]$lineage_muts))
+        Ygr2[[j]]$lineages[Ygr2[[j]]$log_rank == i] = paste(glue('{lins}{lins_perc}'), collapse = ' ')
         Ygr2[[j]]$sel_mutation[Ygr2[[j]]$log_rank == i] = perc_all[[j]]$sel_mutations[perc_all[[j]]$log_rank == i]
         Ygr2[[j]]$tips = NA
       }
@@ -371,6 +359,7 @@ report_table = function(csd = s,
       for(j in 1:length(mutations)) { 
         
         Ygr2[[j]]$defining_muts[Ygr2[[j]]$cluster_id == i] = paste(cmts1[[as.character(i)]], collapse = ' ') 
+        Ygr2[[j]]$defining_dels[Ygr2[[j]]$cluster_id == i] = paste(cdels1[[as.character(i)]], collapse = ' ') 
         
         Ygr2[[j]]$dpa[Ygr2[[j]]$cluster_id == i] = ifelse(!is_empty(dpa4[[j]][[as.character(i)]]) & 
                                                             !is_empty(dpa3[[j]][[as.character(i)]]), "Defining", 
@@ -407,13 +396,13 @@ report_table = function(csd = s,
     Ygr2 = dplyr::bind_rows(Ygr2)
     Ygr2$logistic_growth_rate = sprintf(as.numeric(Ygr2$logistic_growth_rate), fmt = '%#.2f')
     Ygr2 = Ygr2[as.numeric(Ygr2$logistic_growth_rate) > log_growth_rate_cut_off,]
-    Ygr2 = Ygr2[Ygr2$percent > prop_percent,]
+    Ygr2 = Ygr2[Ygr2$percent > prop_cluster,]
     Ygr2$percent = as.integer(Ygr2$percent)
     Ygr2$cluster_size_perc = glue('{Ygr2$cluster_size}({Ygr2$percent})')
     Ygr2$grouping = glue('{Ygr2$lineages}, {Ygr2$sel_mutation}, {Ygr2$log_rank}')
-    Ygr2_output = Ygr2 %>% select(sel_mutation ,lineages, cluster_size_perc, most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, dpa, defining_muts)
+    Ygr2_output = Ygr2 %>% select(sel_mutation, cluster_size_perc, lineages,  most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, dpa, defining_muts, defining_dels)
     
-    colnames(Ygr2_output) = c("Mutation", "Lineages", "Cluster size (%)", "Most recent tip", "Least recent tip", "Log growth rate", "Growth rate rank", "Mutation status", "Defining mutations")
+    colnames(Ygr2_output) = c("Selection", "Size(%)", "Lineages(%)", "Most recent tip", "Least recent tip", "Log growth rate", "Growth rate rank", "Mutation status", "Defining mutations", "Defining deletions")
     rownames(Ygr2_output) <- c()
     
     
@@ -564,7 +553,7 @@ report_table = function(csd = s,
 
     gr_names=NA
     for(i in 1:length(growth_rank)){
-      j = as.integer(sub(".*, ", "", growth_rank[i]))
+      j = as.integer(sub(".*,", "", growth_rank[i]))
       gr_names[i]  = unique(as.character(csd_muts$cluster_id[csd_muts$log_rank == j]))
     }
     names(growth_rank) = gr_names
@@ -586,8 +575,9 @@ report_table = function(csd = s,
     for( j in 1:length(log_rank)) {
       csd_lin[[j]] = csd[csd$log_rank %in% log_rank[[j]],] 
       csd_lin[[j]]$sel_mutation = sel_mutations[[j]]
-      csd_lin[[j]]$sel_mutation_pres = ifelse(csd_lin[[j]]$sequence_name %in% csd_muts1[[sel_mutations[j]]]$sequence_name, 
-                                              TRUE, FALSE)
+      csd_lin[[j]]$sel_mutation_pres = str_detect(csd_lin[[j]]$variants, sel_mutations[[j]])
+        #ifelse(csd_lin[[j]]$sequence_name %in% csd_muts1[[sel_mutations[j]]]$sequence_name, 
+         #                                     TRUE, FALSE)
       csd_names[j] = log_rank[[j]]
       
       
@@ -610,6 +600,7 @@ report_table = function(csd = s,
       
       for(i in 1:length(cluster_ids)) { 
         
+        #percent of cluster that has mutation 
         perc_lin[[i]] = data.frame(table(csd_lin_all$sel_mutation_pres[csd_lin_all$sel_mutation == mutations[j] & 
                                                                          csd_lin_all$log_rank == cluster_ids[i]]))
         perc_lin[[i]]$percent = perc_lin[[i]]$Freq/sum(perc_lin[[i]]$Freq) * 100
@@ -627,36 +618,45 @@ report_table = function(csd = s,
     #names(perc_all) = mutations
     perc_all = bind_rows(perc_all)
     cluster_ids = log_rank
-    
     #defining mutations 
     Ygr2 = Ygr1[Ygr1$log_rank %in% cluster_ids,]
     kp_nodes = as.numeric(unique(Ygr2$cluster_id))
     max_growth_rate = sprintf(as.numeric(max(Ygr2$logistic_growth_rate)), fmt = '%#.2f') 
     n_clusters_included = length(cluster_ids)
-    cmts1 = cluster_muts(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
-    cmts2 = cluster_muts_new(scanner_env = envs, nodes = kp_nodes, overlap_threshold = defining_mutations_cut_off/100)
+    cmts1 = cluster_muts(scanner_env = envs, nodes = kp_nodes, overlap_threshold = 90/100)
+    cmts2 = cluster_muts_new(scanner_env = envs, nodes = kp_nodes, overlap_threshold = 90/100)
+    cids2 = cluster_dels_all(scanner_env = envs, nodes = kp_nodes, overlap_threshold = 90/100)
+    cids1 = cluster_dels(scanner_env = envs, nodes = kp_nodes, overlap_threshold = 90/100)
     names(cmts1) = sort(kp_nodes)
     names(cmts2) = sort(kp_nodes)
+    names(cids1) = sort(kp_nodes)
+    names(cids2) = sort(kp_nodes)
     #remove synsnps 
     e484k = list()
     s494p = list()
-    l18f = list()
+    q667h = list()
     e484k_all = list()
     s494p_all = list()
-    sl18f_all = list()
+    l18f_all = list()
+    q667h_all = list()
     for(i in 1:length(Ygr2$log_rank)) { 
       
       cmts1[[i]] = cmts1[[i]][!str_detect(cmts1[[i]],pattern="synSNP")]
       e484k[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="E484K")]
-      l18f[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="L18F")]
+      q667h[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="Q677H")]
       s494p[[i]] = cmts1[[i]][str_detect(cmts1[[i]],pattern="S494P")]
       cmts3 = names(cmts2[[i]])
       e484k_all[[i]] = cmts3[str_detect(cmts3,pattern="E484K")]
-      sl18f_all[[i]] = cmts3[str_detect(cmts3,pattern="L18F")]
+      q667h_all[[i]] = cmts3[str_detect(cmts3,pattern="Q677H")]
+      #l18f_all[[i]] = cmts3[str_detect(cmts3,pattern="Q677H")]
       s494p_all[[i]] = cmts3[str_detect(cmts3,pattern="S494P")]
     }
     names(e484k) = sort(kp_nodes)
     names(e484k_all) = sort(kp_nodes)
+    names(q667h) = sort(kp_nodes)
+    names(q667h_all) = sort(kp_nodes)
+    names(s494p) = sort(kp_nodes)
+    names(s494p_all) = sort(kp_nodes)
     
     dpa = list()
     dpa2 = list() 
@@ -687,9 +687,13 @@ report_table = function(csd = s,
       
       for(i in cluster_ids) {
         
+        lsr = as.integer(100*rev(sort(table(csd_lin_all$lineage[csd_lin_all$log_rank == i])/nrow(csd_lin_all[csd_lin_all$log_rank == i,]))))
+        lsr = ifelse(lsr == 0, "<1", lsr)
         
         Ygr2[[j]]$percent[Ygr2[[j]]$log_rank == i] = perc_all$percent[perc_all$log_rank == i & perc_all$sel_mutations == mutations[j]]
         Ygr2[[j]]$lineages[Ygr2[[j]]$log_rank == i] = paste(unique(csd_lin_all$lineage_muts[csd_lin_all$log_rank == i]), collapse = ' ')
+        Ygr2[[j]]$lineages_perc[Ygr2[[j]]$log_rank == i] = paste(glue('{names(rev(sort(table(csd_lin_all$lineage[csd_lin_all$log_rank == i]))))}({lsr})'), 
+                                                             collapse = ' ')
         Ygr2[[j]]$table_rank[Ygr2[[j]]$log_rank == i] = unique(csd_muts$table_rank[csd_muts$log_rank == i])
         Ygr2[[j]]$sel_mutation[Ygr2[[j]]$log_rank == i] = mutations[j]
         Ygr2[[j]]$growth_rank[Ygr2[[j]]$log_rank == i] = unique(csd_muts$growth_rank[csd_muts$log_rank == i ])
@@ -698,17 +702,33 @@ report_table = function(csd = s,
       }
     }
     
+    
     for(i in sort(kp_nodes)) { 
       
       for(j in 1:length(mutations)) { 
         
         Ygr2[[j]]$defining_muts[Ygr2[[j]]$cluster_id == i] = paste(cmts1[[as.character(i)]], collapse = ' ') 
+        Ygr2[[j]]$defining_dels[Ygr2[[j]]$cluster_id == i] = paste(cids1[[as.character(i)]], collapse = ' ')
         
+        if(length(mutations) > 1) {
         Ygr2[[j]]$dpa[Ygr2[[j]]$cluster_id == i] = ifelse(!is_empty(dpa4[[j]][[as.character(i)]]) & 
-                                                            !is_empty(dpa3[[j]][[as.character(i)]]), "Defining", 
+                                                            !is_empty(dpa3[[j]][[as.character(i)]]), glue('{mutations[j]} Defining'), 
                                                           ifelse(is_empty(dpa4[[j]][[as.character(i)]]) &
+                                                                   !is_empty(dpa3[[j]][[as.character(i)]]) ,glue('{mutations[j]} Present'), 
+                                                                 glue('{mutations[j]} Absent')))
+        
+        } 
+        
+        if(length(mutations) == 1) {  
+          
+          Ygr2[[j]]$dpa[Ygr2[[j]]$cluster_id == i] = ifelse(!is_empty(dpa4[[j]][[as.character(i)]]) & 
+                                                            !is_empty(dpa3[[j]][[as.character(i)]]), "Defining", 
+                                                            ifelse(is_empty(dpa4[[j]][[as.character(i)]]) &
                                                                    !is_empty(dpa3[[j]][[as.character(i)]]) , "Present", 
-                                                                 "Absent"))
+                                                                   "Absent"))
+          
+      
+          }
       }
       
     }
@@ -736,15 +756,120 @@ report_table = function(csd = s,
       }
     }
     
+   
+    ygrl_all = list()
+    
+    
+    for(i in 1:length(lineages)){
+      
+      NAs = rep(NA, length(mutations))
+      ygrl = data.frame(group = NAs, table_rank = NAs, cluster_size_perc = NAs, lineages_perc = NAs, 
+                        most_recent_tip = rep(ymd("2020-01-01"), length(mutations)), 
+                        least_recent_tip = rep(ymd("2020-01-01"), length(mutations)), 
+                        logistic_growth_rate = NAs, log_rank = NAs, 
+                        dpa = NAs, defining_muts = NAs, defining_dels = NAs)
+    
+      
+      for(j in 1:length(mutations)){ 
+      
+      perc_cluster = 100*nrow(csd_muts1[[j]][csd_muts1[[j]]$lineage == lineages[i],])/
+        nrow(csd[csd$lineage == lineages[i],])
+      if(length(mutations) > 1){ 
+      ygrl$dpa[j] = ifelse(perc_cluster > 90, glue('{mutations[j]} Defining'), 
+                        ifelse(perc_cluster > 0 & perc_cluster < 90,glue('{mutations[j]} Present'), 
+                               glue('{mutations[j]} Absent')))
+      } else { 
+        ygrl$dpa[j] = ifelse(perc_cluster > 90, glue('Defining'), 
+                           ifelse(perc_cluster > 0 & perc_cluster < 90,glue('Present'), 
+                                  glue('Absent'))) 
+        }
+      
+      perc_cluster = ifelse(perc_cluster >= 1, as.character(as.integer(perc_cluster)), 
+                            ifelse(perc_cluster < 1 & perc_cluster > 0, "<1", 0))
+      ygrl$group[j] = "Lineage"
+      ygrl$table_rank[j] = lineages[i]
+      ygrl$cluster_size_perc[j] = glue('{nrow(csd[csd$lineage == lineages[i],])}({perc_cluster})')
+      ygrl$lineages_perc[j] = ""
+      ygrl$most_recent_tip[[j]] = max(csd$most_recent_tip[csd$lineage == lineages[i]]) 
+      ygrl$least_recent_tip[j] = min(csd$least_recent_tip[csd$lineage == lineages[i]])
+      ygrl$logistic_growth_rate[j] = ""
+      ygrl$log_rank[j] = ""
+      ygrl$defining_muts = ""
+      ygrl$defining_dels = ""
+      
+      }
+      
+      ygrl_all[[i]] = ygrl
+      
+    }
+    
+    ygrm_all = list()
+    
+    for(i in 1:length(mutations)){ 
+    
+      NAs = rep(NA, length(lineages))
+      ygrm = data.frame(group = NAs, table_rank = NAs, cluster_size_perc = NAs, lineages_perc = NAs, 
+                        most_recent_tip = rep(ymd("2020-01-01"), length(lineages)), 
+                        least_recent_tip = rep(ymd("2020-01-01"), length(lineages)), 
+                        logistic_growth_rate = NAs, log_rank = NAs, 
+                        dpa = NAs, defining_muts = NAs, defining_dels = NAs)
+    
+    for(j in 1:length(lineages)){ 
+    
+      perc_cluster = 100 * nrow(csd_muts1[[i]][csd_muts1[[i]]$lineage == lineages[j],])/
+        nrow( csd %>% filter(str_detect(variants, mutations[[i]])))
+      
+      if(length(lineages) > 1){ 
+        ygrm$dpa[j] = ifelse(perc_cluster >= 90, glue('{lineages[j]} Defining'), 
+                           ifelse(perc_cluster > 0 & perc_cluster < 90, glue('{lineages[j]} Present'), 
+                                  glue('{lineages[j]} Absent')))
+        
+      } else { 
+        
+       ygrm$dpa[j] = ifelse(perc_cluster >= 90, glue('Defining'), 
+                             ifelse(perc_cluster > 0 & perc_cluster < 90, glue('Present'), 
+                                    glue('Absent')))
+       
+      }
+      perc_cluster = ifelse(perc_cluster >= 1, as.character(as.integer(perc_cluster)), 
+                            ifelse(perc_cluster < 1 & perc_cluster > 0, "<1", 0))
+      ygrm$cluster_size_perc[[j]] = glue('{nrow( csd %>% filter(str_detect(variants, mutations[[i]])))}({perc_cluster})')
+      ygrm$most_recent_tip[[j]] = max(csd$most_recent_tip[csd$lineage == lineages[j]]) 
+      ygrm$least_recent_tip[[j]] = min(csd$least_recent_tip[csd$lineage == lineages[j]])
+      
+    }  
+    
+    ygrm$group = "Mutation"
+    ygrm$table_rank = mutations[i]
+    ygrm$lineages_perc = ""
+    ygrm$logistic_growth_rate = ""
+    ygrm$log_rank = ""
+    ygrm$defining_muts = ""
+    ygrm$defining_dels = ""
+    
+    ygrm_all[[i]] = ygrm
+    
+    }
+    
+    ygrl_all = dplyr::bind_rows(ygrl_all, ygrm_all)
     
     Ygr2 = dplyr::bind_rows(Ygr2)
     Ygr2$logistic_growth_rate = sprintf(as.numeric(Ygr2$logistic_growth_rate), fmt = '%#.2f')   
     Ygr2$percent = as.integer(Ygr2$percent) 
-    Ygr2 = Ygr2[Ygr2$percent > prop_percent,]
+    #Ygr2 = Ygr2[Ygr2$percent > prop_cluster,]
     Ygr2$cluster_size_perc = glue('{Ygr2$cluster_size}({Ygr2$percent})')
-    Ygr2_output = Ygr2 %>% select(table_rank, sel_mutation ,lineages, cluster_size_perc, most_recent_tip, least_recent_tip, logistic_growth_rate, dpa, log_rank, defining_muts)
+    Ygr2$group = "Selection"
+    #Ygr2$lineages_perc = Ygr2$lineages2 #glue('{Ygr2$lineages}({Ygr2$percent})')
+    #Ygr2$lineages2 = NULL 
+    Ygr2$log_rank = as.character(Ygr2$log_rank)
     
-    colnames(Ygr2_output) = c("Selection", "Mutation", "Lineages", "Cluster size (%)", "Most recent tip", "Least recent tip", "Log growth rate", "Growth rate rank", "Mutation status", "Defining mutations")
+    Ygr2 = dplyr::bind_rows(ygrl_all, Ygr2)
+    Ygr2_output = Ygr2 %>% select(group, table_rank, cluster_size_perc, lineages_perc,  most_recent_tip, least_recent_tip, logistic_growth_rate, log_rank, dpa,  defining_dels, defining_muts)
+    Ygr2_output = Ygr2_output[order(Ygr2_output$group),]
+    Ygr2_output = Ygr2_output[,-1]
+    colnames(Ygr2_output) = c("Selection", "Size (%)", "Lineage (%)", "Most recent tip", 
+                              "Least recent tip", "Log growth rate", "Growth rate rank", 
+                              "Mutation status", "Defining deletions", "Defining mutations")
     rownames(Ygr2_output) <- c()
     
     
@@ -757,7 +882,7 @@ saveRDS(Ygr2, glue('{path_to_scanner}Ygr2_{max_date}_{min_date}.RDS'))
 kp_nodes = kp_nodes[kp_nodes %in% Ygr2$cluster_id]
 saveRDS(kp_nodes, glue('{path_to_scanner}kp_nodes.RDS'))
 
-list(Ygr2_output, csd_select, csd_cluster, kp_nodes, growth_rank, cmts1, cmts2, Ygr2, growth_rank2)
+Ygr2_out = list(Ygr2_output, csd_select, csd_cluster, kp_nodes, growth_rank, cmts1, cmts2, Ygr2)
 
 }
 
