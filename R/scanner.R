@@ -10,12 +10,12 @@
 #' @param min_date Only include samples after this data 
 #' @param max_date Only include samples before and including this date
 #' @param ncpu number cpu for multicore ops 
-#' @param path_to_data Path to data with COG tree and COG tree metadata 
+#' @param path_to_data path to data with COG alignment metadata 
 #' @param output_dir Path to directory where results will be saved 
 #' @param include_pillar1 if TRUE (default FALSE), will include Pillar 1 samples when computing stats
 #' @export 
 scanner <- function(treenexfn = NULL, min_descendants = 30 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8
- , path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/'
+ , path_to_data = '/cephfs/cobid/bham/results/'
  , output_dir = '.' 
  , include_pillar1 = FALSE
  )
@@ -39,7 +39,7 @@ print(paste('Starting ', Sys.time()) )
 	
 	# tree data 
 	if ( is.null( treenexfn ) ){
-		tre = read.tree(list.files(  paste0(path_to_data, '/trees') , patt = 'cog_global_.*_tree.newick', full.names=TRUE) )
+		tre = read.tree(list.files(  paste0(path_to_data, '/phylogenetics/latest/trees') , patt = 'cog_global_.*_tree.newick', full.names=TRUE) )
 		nodedata = NULL
 	} else{
 		library( treeio ) 
@@ -53,11 +53,21 @@ print(paste('Starting ', Sys.time()) )
 	#amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE)  , stringsAs=FALSE )
 	#cog_global_2021-03-23_consortium.csv
 	#~ 	cog_id
-	amd <- read.csv( list.files(  paste0( path_to_data , '/metadata/') , patt = 'cog_global_[0-9\\-]+_consortium.csv', full.names=TRUE)  , stringsAs=FALSE )
+	amd <- read.csv( list.files(  paste0( path_to_data, '/msa/latest/alignments') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE)  , stringsAs=FALSE )
 	amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
 	
 	# exclude global 
 	amd <- amd[ amd$country == 'UK', ]
+	
+	if ( !('pillar_2' %in% colnames(amd)) ){
+	  amd$pillar_2 = 'True'
+	  if( ('is_pillar_2' %in% colnames(amd)) ){ 
+	    amd$pillar_2 = amd$is_pillar_2
+	    amd$pillar_2 = ifelse(amd$is_pillar_2 == "Y", "True", ifelse(amd$is_pillar_2 == "N", "False", NA))
+	  } 
+	  
+	}
+	
 	# exclude p1 
 	if ( !include_pillar1 )
 	{
@@ -267,7 +277,7 @@ print(paste('Starting ', Sys.time()) )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	cat('saving image ... \n' ) 
 	e0 = list( descendantSids = descendantSids, ancestors = ancestors, sts = sts , tre = tre, descendantTips = descendantTips, descendants = descendants , Y = Y 
-	  , nodedata = nodedata
+	  , nodedata = nodedata, ndesc = ndesc, descsts = descsts, amd = amd 
 	)  
 	saveRDS(e0, file=ofn3)
 	cat( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.\n \n'  ) )
@@ -444,7 +454,7 @@ inner_get_comparator_sample <- function( u, nX = 5 )
 #'
 #' @export 
 compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-env-2021-03-03.rds"), 
-                                path_to_data = '/cephfs/covid/bham/results/phylogenetics/latest/' , 
+                                path_to_data = '/cephfs/covid/bham/results/' , 
                                 include_pillar1=F, min_date = NULL, max_date = NULL,
                                 threshold_growth = .5,fast_return=F) 
 {
@@ -463,7 +473,7 @@ compare_age_groups <- function( targetnodes=NULL , scanner_env=readRDS("scanner-
   descsts <<- lapply( 1:(n+nnode), function(u) sts[ na.omit( descendantSids[[u]] )  ]  )
   
   ## regen for get_comparator_sample
-  amd <- read.csv( list.files(  paste0( path_to_data , '/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
+  amd <- read.csv( list.files(  paste0( path_to_data , '/msa/latest/alignments/') , patt = 'cog_[0-9\\-]+_metadata.csv', full.names=TRUE) 
                    , stringsAs=FALSE )
   amd$sample_time = decimal_date ( as.Date( amd$sample_date ))
   

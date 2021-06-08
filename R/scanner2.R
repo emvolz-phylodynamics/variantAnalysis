@@ -69,7 +69,12 @@ print(paste('Starting ', Sys.time()) )
 	if ( !('country' %in% colnames(amd)) )
 		amd$country = 'country_not_specified'
 	if ( !('pillar_2' %in% colnames(amd)) ){
-		amd$pillar_2 = 'True'
+	  amd$pillar_2 = 'True'
+	  if( ('is_pillar_2' %in% colnames(amd)) ){ 
+	    amd$pillar_2 = amd$is_pillar_2
+	    amd$pillar_2 = ifelse(amd$is_pillar_2 == "Y", "True", ifelse(amd$is_pillar_2 == "N", "False", NA))
+	  } 
+	  
 	}
 	# only data within country 
 	if ( !is.null( country ))
