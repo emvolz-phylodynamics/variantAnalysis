@@ -321,15 +321,21 @@ inner_condense_clusters <- function( Y, threshold_growth = .5 , candidate_nodes 
   keepnodes 
 }
 
+#' @param mut_variable Name of variable in data frame (spec by mutfn) which contains genetic variant data
 #' @export 
 cluster_muts = function( Y
  , scanner_env 
  , nodes 
  , mutfn = list.files( patt = 'cog_global_[0-9\\-]+_mutations.csv' , full.name=TRUE , path = '../phylolatest/metadata/' )
+ , mut_variable = c( 'variants', 'mutations' )
  , min_seq_contrast = 1 # sequences in ancestor clade
  , overlap_threshold = .9
  )
 {
+	mut_variable = mut_variable[1] 
+	if ( !('tips' %in% colnames( Y)))
+		stop('Input data is missing column `tips`')
+	
 	e1 = as.environment( scanner_env )
 	attach( e1 )
 	
@@ -344,11 +350,12 @@ cluster_muts = function( Y
 	mdf = read.csv( mutfn, stringsAs=FALSE )
 	
 	cms = lapply( 1:nrow(Ygr1) , function(ku) {
-		mdf.u = mdf[ mdf$sequence_name %in% strsplit( Ygr1$tips[ku], split = '\\|')[[1]] , ]
+		tipsku = strsplit( Ygr1$tips[ku], split = '\\|')[[1]] 
+		mdf.u = mdf[ mdf$sequence_name %in% tipsku, ]
 		u = nodes[ku] 
 		
 		## find comparator ancestor 
-		for ( a in ancestors[[u]][-1] ){
+		for ( a in rev( ancestors[[u]] ) ){ ## NOTE ancestors goes in order of (tree root) -> u , so rev to go from u to tree root 
 			sdt = setdiff( descendantTips[[a]] , descendantTips[[u]] ) 
 			if ( length( sdt ) >= min_seq_contrast )
 				break 
@@ -356,8 +363,8 @@ cluster_muts = function( Y
 		asids = setdiff( descendantSids[[a]] ,  descendantSids[[u]] )
 		mdf.a = mdf[ mdf$sequence_name %in% asids   , ]
 
-		vtabu = sort( table( do.call( c, strsplit( mdf.u$variants, split='\\|' )  ) ) / nrow( mdf.u ) )
-		vtaba = sort( table( do.call( c, strsplit( mdf.a$variants, split='\\|' )  ) ) / nrow( mdf.a ) )
+		vtabu = sort( table( do.call( c, strsplit( mdf.u[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.u ) )
+		vtaba = sort( table( do.call( c, strsplit( mdf.a[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.a ) )
 		
 		res = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
 		 , names(vtaba[ vtaba > overlap_threshold ]) )
@@ -367,9 +374,9 @@ cluster_muts = function( Y
 	detach( e1 )
 	
 	ress2 = cms 
-	if ( length(cms) > 1 ){
-		ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
-	} 
+	#~ 	if ( length(cms) > 1 ){
+	#~ 		ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
+	#~ 	} 
 	names( ress2 ) <- Ygr1$node_number 
 	ress2
 }
@@ -603,7 +610,7 @@ get_clusternode_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-
   msg <- mlskygrid(tr3, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sts[tr3$tip.label] , 
                    res = 10, ncpu = 3)
   
-  list( mlesky = msg, tree = tr3 )
+  list( mlesky = msg, timetree = tr3, tree = tr  )
 }
 
 #'

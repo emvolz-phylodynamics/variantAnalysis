@@ -4,15 +4,7 @@
 \alias{report_table}
 \title{Table for scanner report}
 \usage{
-report_table(
-  csd = s,
-  log_growth_rate_cut_off = log_growth_rate_cut_off,
-  lineages = lineages,
-  mutations = mutations,
-  cut_off = cut_off,
-  prop_cluster = prop_cluster,
-  defining_mutations_cut_off = defining_mutations_cut_off
-)
+report_table(csd = s, lineages, mutations, cut_off, Ygr1)
 }
 \description{
 Table for scanner report

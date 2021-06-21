@@ -7,7 +7,7 @@
 compare_age_groups(
   targetnodes = NULL,
   scanner_env = readRDS("scanner-env-2021-03-03.rds"),
-  path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/",
+  path_to_data = "/cephfs/covid/bham/results/",
   include_pillar1 = F,
   min_date = NULL,
   max_date = NULL,

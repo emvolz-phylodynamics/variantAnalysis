@@ -1,8 +1,8 @@
 Package: variantAnalysis
 Type: Package
 Title: sarscov2 variant analysis 
-Version: 0.0.3
-Date: 2021-03-22
+Version: 0.0.4
+Date: 2021-06-21
 Author: Erik Volz, Olivia Boyd, Rob Johnson
 Maintainer: Erik Volz <e.volz@imperial.ac.uk>
 Description: -skygrowth comparison between clusters -identify recurrent mutations & quantify offspring beneath mixed nodes -frequency analysis -molecular clock outliers

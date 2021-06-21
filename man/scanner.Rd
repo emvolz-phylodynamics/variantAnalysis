@@ -11,7 +11,7 @@ scanner(
   min_date = NULL,
   max_date = NULL,
   ncpu = 8,
-  path_to_data = "/cephfs/covid/bham/results/phylogenetics/latest/",
+  path_to_data = "/cephfs/cobid/bham/results/",
   output_dir = ".",
   include_pillar1 = FALSE
 )
@@ -29,7 +29,7 @@ scanner(
 
 \item{ncpu}{number cpu for multicore ops}
 
-\item{path_to_data}{Path to data with COG tree and COG tree metadata}
+\item{path_to_data}{path to data with COG alignment metadata}
 
 \item{output_dir}{Path to directory where results will be saved}
 

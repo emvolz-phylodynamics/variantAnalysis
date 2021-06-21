@@ -289,7 +289,7 @@ print(paste('Starting ', Sys.time()) )
 	  , nodedata = nodedata
 	  , ndesc = ndesc
 	  , descsts = descsts 
-	  , amd = amd 
+	  , amd = amd[ , c('sequence_name', 'central_sample_id', 'sample_time', 'sample_date', 'region') ] 
 	)  
 	saveRDS(e0, file=ofn3)
 	message( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.'  ) )
