@@ -10,7 +10,31 @@
 #' @param non_extinction Minimum cumulative infections required to return trajectory 
 #' @return Matrix with simulation output 
 sim_cluster_growth <- function(tstart, tfin, R
-	, Rsd = .15
+	, Rsd = .2
+	, non_extinction = 0
+	, ntries = 10  )
+{
+	if ( tstart >= tfin ){
+		return ( NULL )
+	}
+	.R <- max( 0, rnorm( 1, R , Rsd ))
+	finci = -Inf 
+	fn = system.file( 'stochastic_seir0.R', package = 'variantAnalysis' )
+	seir_gen <- odin::odin( fn ) 
+	seir_sim <- seir_gen( R = .R )
+	tries <- 0 
+	while( (finci < non_extinction) & (tries < ntries) ) {
+		X = seir_sim$run( seq( tstart, tfin, by = 1) ) 
+		finci <- tail( X[, 'cI'], 1 )
+		print( finci )
+		tries <- tries + 1
+	}
+	
+	cbind( X, R = .R )
+}
+
+.sim_cluster_growth <- function(tstart, tfin, R
+	, Rsd = .2
 	, non_extinction = 0
 	, ntries = 10  )
 {
@@ -22,9 +46,9 @@ sim_cluster_growth <- function(tstart, tfin, R
 	}
 	.R <- max( 0, rnorm( 1, R , Rsd ))
 	finci = -Inf 
-	fn = system.file( 'stochastic_seir0.R', package = 'variantAnalysis' )
+	fn = system.file( 'stochastic_seir1.R', package = 'variantAnalysis' )
 	seir_gen <- odin::odin( fn ) 
-	seir_sim <- seir_gen( R = .R )
+	seir_sim <- seir_gen( R = .R , tini = tstart, Requil = R )
 	tries <- 0 
 	while( (finci < non_extinction) & (tries < ntries) ) {
 		X = seir_sim$run( seq( tstart, tfin, by = 1) ) 
@@ -68,9 +92,18 @@ sim_sampling_cluster <- function( X,  rho0 = .10 , rho1 = .25 )
 	N <- floor( tail(X[, 'cI'], 1) )
 	n <- rbinom( 1, N, rho0*rho1 )
 	w <- pmax(0, as.vector( X[, 'I'] ) )
-	taili <- (length(w ) - 11):length(w)
-	w[taili] <- w[taili] *  exp( -(0:11) / 3 )  # seq( 1-1/12, 0, by = -1/12 )
-	w  <- w / sum( w )  
+	lb <- min( 11, nrow(X)-1)
+	taili <- (length(w ) - lb):length(w)
+	w[taili] <- w[taili] *  exp( -(0:lb) / 3 )  # seq( 1-1/12, 0, by = -1/12 )
+	if ( sum( w ) > 0 ){
+		w  <- w / sum( w ) 
+	} else{
+		w <- rep(1 , length( w) )
+	}
+	if ( any( is.na( w ))) {
+		browser()  
+		return( NULL )
+	}
 	ti <- sample.int( nrow(X)
 	 , size = n 
 	 , prob = w
@@ -82,16 +115,18 @@ sim_sampling_cluster <- function( X,  rho0 = .10 , rho1 = .25 )
 
 #' Simulate entire pipeline: importation, growth, sampling 
 sim_replicate <- function( 
- E_imports0
- , E_imports1
- , mu = 2021.299
- , sigma = 1/12/4
- , tfin = 2021.299+ 1.5/12
- , Rvariant = 2.0 
- , Rancestral = 1.5
- , rho0 = 0.1 
- , rho1 = 0.5 
-) {
+ E_imports0 = 650 # cf coguk/g2-adf3.rds
+ , E_imports1 = 650
+ , mu = lubridate::decimal_date( as.Date( "2021-04-18")) #cf coguk/g2-adf3.rds, based on B117
+ , sigma = 12.9 / 365 # std dev of cluster origin (yrs), g2-adf3.rds
+ , tfin = lubridate::decimal_date( as.Date( "2021-04-18")) + 1/12
+ , Rvariant = 1.6*1. #cf coguk/b.1.617/g3.1
+ , Rancestral = 1.
+ , Rsd = .2 # std dev of initial R in clusters, cf coguk/b.1.617/g3.1
+ , rho0 = 0.9 # proportion sequenced  
+ , rho1 = 0.5 # proportion diagnosed 
+)
+{ 
 	library( lubridate )
 	rho <- rho0 * rho1 
 	nonext <- 5 / rho 
@@ -103,7 +138,7 @@ sim_replicate <- function(
 	
 	ctraj0 <- lapply( itimes$variant, function(tt){
 		.tstart = as.numeric( as.Date( date_decimal( tt ) ) - as.Date( '2021-01-01' ) )
-		sim_cluster_growth(.tstart, .tfin, Rvariant, non_extinction = 10 )
+		sim_cluster_growth(.tstart, .tfin, Rvariant, Rsd= Rsd,  non_extinction = 10 )
 	})
 	samp0 <- do.call( rbind, lapply( seq_along(ctraj0), function(i){
 		if ( is.null( ctraj0[[i]] ) )
@@ -120,7 +155,7 @@ sim_replicate <- function(
 	
 	ctraj1 <- lapply( itimes$ancestral, function(tt){
 		.tstart = as.numeric( as.Date( date_decimal( tt ) ) - as.Date( '2021-01-01' ) )
-		sim_cluster_growth(.tstart, .tfin, Rancestral, non_extinction = 10 )
+		sim_cluster_growth(.tstart, .tfin, Rancestral, Rsd= Rsd, non_extinction = 10 )
 	})
 	samp1 <- do.call( rbind, lapply( seq_along(ctraj1), function(i){
 		if ( is.null( ctraj1[[i]] ) )
@@ -138,18 +173,29 @@ sim_replicate <- function(
 	rbind( samp0, samp1 )	
 }
 
-
+#~ library( lubridate )
 #~ o = sim_replicate( 
-#~  E_imports0 = 25
-#~  , E_imports1 = 25
-#~  , mu = 2021.25
-#~  , sigma = 1/12/4
-#~  , tfin = 2021.25+ 2/12
-#~  , Rvariant = 2.0 
-#~  , Rancestral = 1.5
-#~  , rho0 = 0.1 
-#~  , rho1 = 0.5 
+#~  E_imports0 = 650 # cf coguk/g2-adf3.rds
+#~  , E_imports1 = 650
+#~  , mu = decimal_date( as.Date( "2021-04-18")) #cf coguk/g2-adf3.rds, based on B117
+#~  , sigma = 12.9 / 365 # std dev of cluster origin (yrs), g2-adf3.rds
+#~  , tfin = decimal_date( as.Date( "2021-04-18")) + 1/12
+#~  , Rvariant = 1.6*0.9 #cf coguk/b.1.617/g3.1
+#~  , Rancestral = .9
+#~  , Rsd = .2 # std dev of initial R in clusters, cf coguk/b.1.617/g3.1
+#~  , rho0 = 0.9 # proportion sequenced  
+#~  , rho1 = 0.5 # proportion diagnosed TODO TODO 
 #~ )
 
-#' Inference for simulated samples
+
+#~ #' Inference for simulated samples
+
+#~ library( mlogit ) 
+#~ minsize <- 20 
+#~ tc <- table( o$cluster )
+#~ keepc <- names(tc) [ tc >= minsize ] 
+#~ o1 <- o[ o$cluster %in% keepc , ]
+
 #~ m = glm( (lineage=='variant') ~ sample_time , family = binomial( link = 'logit' ) , data = o ); summary( m )
+#~ m = mgcv::gam( as.factor( cluster )  ~ sample_time * lineage , data = o1 , family = mgcv::multinom(K = length(unique( o1$cluster)))  )
+
