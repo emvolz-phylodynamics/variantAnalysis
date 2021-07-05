@@ -5,15 +5,16 @@
 \title{Simulate entire pipeline: importation, growth, sampling}
 \usage{
 sim_replicate(
-  E_imports0,
-  E_imports1,
-  mu = 2021.299,
-  sigma = 1/12/4,
-  tfin = 2021.299 + 1.5/12,
-  Rvariant = 2,
-  Rancestral = 1.5,
-  rho0 = 0.1,
-  rho1 = 0.5
+  E_imports0 = 650,
+  E_imports1 = 650,
+  mu = lubridate::decimal_date(as.Date("2021-04-18")),
+  sigma = 12.9/365,
+  tfin = lubridate::decimal_date(as.Date("2021-04-18")) + 1/12,
+  Rvariant = 1.5 * 1,
+  Rancestral = 0.9,
+  Rsd = 0.2,
+  rho0 = 0.9,
+  rho1 = 0.66
 )
 }
 \description{

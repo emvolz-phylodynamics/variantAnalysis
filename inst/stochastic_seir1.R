@@ -5,7 +5,7 @@ update(I) <- I + n_EI - n_IR
 
 ## flux
 dx <- 1
-pini <- max(0, min(1, (t-tini)/(tequil-tini) )) #TODO does not work
+pini <- max(0, min(1, (step-tini)/(tequil-tini) )) #TODO does not work
 Rt <- Requil * pini  + R * (1-pini)
 
 En_SI <- Rt*gamma2*I*dx
@@ -26,7 +26,7 @@ initial(I) <- 0
 ## inputs
 R <- user(1.75) 
 Requil <- user( 1.25 )
-gamma1 <- user( 1/4 ) ## TODO update defaults
+gamma1 <- user( 1/5 ) ## matches SEIJR models
 gamma2 <- user( 1/3 )
 tini <- user(0)
 tequil <- user( 45 )

@@ -23,5 +23,5 @@ initial(I) <- 0
 
 ## inputs
 R <- user(1.2) 
-gamma1 <- user( 1/4 ) ## TODO update defaults
+gamma1 <- user( 1/5 ) ## 
 gamma2 <- user( 1/3 )

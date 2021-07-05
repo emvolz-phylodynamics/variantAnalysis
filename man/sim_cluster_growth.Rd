@@ -4,14 +4,7 @@
 \alias{sim_cluster_growth}
 \title{Simulate cluster trajectories}
 \usage{
-sim_cluster_growth(
-  tstart,
-  tfin,
-  R,
-  Rsd = 0.15,
-  non_extinction = 0,
-  ntries = 10
-)
+sim_cluster_growth(tstart, tfin, R, Rsd = 0.2, non_extinction = 0, ntries = 10)
 }
 \arguments{
 \item{tstart}{Time of origin}
