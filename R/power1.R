@@ -234,7 +234,7 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 		coef = summ1$coefficients[ 2, c(1, 4)]
 		, fitcoefs = rs_ests 
 		, res = d
-		, summary = summ1 
+		#, summary = summ1 
 	)
 }
 #~ sim_inference_clusterwise_logistic( o  )
@@ -284,8 +284,9 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 	f = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
 	#c( (tt - MU)*365, o1$coef  )
 	
+	print( nrow(o))
 	list( 
-		data = o 
+		data = o[1:min(nrow(o), 10e3) , ]
 		, fit = data.frame( 
 			tfin = TFIN 
 			, window = floor( (TFIN - MU)*365 )
@@ -296,7 +297,7 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 		, rho0 = RHO0 
 		, minClusterSize = 5 
 		, fit = f 
-		, call = as.list(match.call())
+		#, call = as.list(match.call())
 	)
 }
 
