@@ -278,8 +278,7 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 	o = sim_replicate( 
 		  mu = MU #cf coguk/g2-adf3.rds, based on B117
 		  , tfin = TFIN 
-		  , rho0 = RHO0
-		  , seir_gen = NULL 
+		  , rho0 = RHO0 
 		 , ...
 	)
 	f = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
