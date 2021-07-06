@@ -105,6 +105,7 @@ sim_replicate <- function(
  , Rsd = .2 # std dev of initial R in clusters, cf coguk/b.1.617/g3.1
  , rho0 = 0.9 # proportion sequenced  
  , rho1 = 0.66 # proportion diagnosed 
+ , seir_gen = NULL 
 )
 { 
 	library( lubridate )
@@ -118,7 +119,7 @@ sim_replicate <- function(
 	
 	ctraj0 <- lapply( itimes$variant, function(tt){
 		.tstart = as.numeric( as.Date( date_decimal( tt ) ) - as.Date( '2021-01-01' ) )
-		sim_cluster_growth(.tstart, .tfin, Rvariant, Rsd= Rsd,  non_extinction = 10 )
+		sim_cluster_growth(.tstart, .tfin, Rvariant, Rsd= Rsd,  non_extinction = 10, seir_gen = seir_gen )
 	})
 	samp0 <- do.call( rbind, lapply( seq_along(ctraj0), function(i){
 		if ( is.null( ctraj0[[i]] ) )
@@ -278,6 +279,7 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 		  mu = MU #cf coguk/g2-adf3.rds, based on B117
 		  , tfin = TFIN 
 		  , rho0 = RHO0
+		  , seir_gen = NULL 
 		 , ...
 	)
 	f = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
