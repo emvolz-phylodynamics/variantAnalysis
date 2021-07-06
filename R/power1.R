@@ -12,15 +12,18 @@
 sim_cluster_growth <- function(tstart, tfin, R
 	, Rsd = .2
 	, non_extinction = 0
-	, ntries = 10  )
+	, ntries = 10  
+	, seir_gen = NULL )
 {
 	if ( tstart >= tfin ){
 		return ( NULL )
 	}
 	.R <- max( 0, rnorm( 1, R , Rsd ))
 	finci = -Inf 
-	fn = system.file( 'stochastic_seir2.R', package = 'variantAnalysis' )
-	seir_gen <- odin::odin( fn ) 
+	if ( is.null( seir_gen )){
+		fn = system.file( 'stochastic_seir2.R', package = 'variantAnalysis' )
+		suppressMessages( {seir_gen = odin::odin( fn ) } )
+	}
 	seir_sim <- seir_gen( R = .R ,  Requil = R, tini = tstart, tequil = tfin)
 	tries <- 0 
 	while( (finci < non_extinction) & (tries < ntries) ) {
@@ -33,32 +36,7 @@ sim_cluster_growth <- function(tstart, tfin, R
 	cbind( X, R = .R )
 }
 
-.sim_cluster_growth <- function(tstart, tfin, R
-	, Rsd = .2
-	, non_extinction = 0
-	, ntries = 10  )
-{
-	#~ 	tstart = 1 
-	#~ 	tfin = 30 
-	#~ 	R = 1.3 
-	if ( tstart >= tfin ){
-		return ( NULL )
-	}
-	.R <- max( 0, rnorm( 1, R , Rsd ))
-	finci = -Inf 
-	fn = system.file( 'stochastic_seir1.R', package = 'variantAnalysis' )
-	seir_gen <- odin::odin( fn ) 
-	seir_sim <- seir_gen( R = .R , tini = tstart, Requil = R )
-	tries <- 0 
-	while( (finci < non_extinction) & (tries < ntries) ) {
-		X = seir_sim$run( seq( tstart, tfin, by = 1) ) 
-		finci <- tail( X[, 'cI'], 1 )
-		print( finci )
-		ntries <- ntries + 1
-	}
-	
-	cbind( X, R = .R )
-}
+
 
 #~ sim_cluster_growth( 0, 30 , 1.2, non_extinction = 5 / .1 / .5  )
 
@@ -178,6 +156,8 @@ sim_replicate <- function(
 
 
 
+
+
 #~ #' Inference for simulated samples
 
 #~ library( mlogit ) 
@@ -226,7 +206,12 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 		# store to plot
 		ms[[i]] <- m
 	}
-	rs_ests <- sapply(ms,function(m) c( coef(m)[2] , tryCatch({confint(m)[2,]}, error = function(e) { return(c(NA,NA))})  ))
+	rs_ests <- sapply(ms,function(m) 
+		c( 
+			coef(m)[2] 
+			, tryCatch( suppressMessages({confint(m)[2,]}), error = function(e) { return(c(NA,NA))})  
+		)
+	)
 	rs_ests_wt <- rs_ests[ , clust_lineage == 'ancestral' ]
 	rs_ests_mutant <- rs_ests[ , clust_lineage == 'variant' ]
 	
@@ -246,7 +231,6 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 	
 	list(
 		coef = summ1$coefficients[ 2, c(1, 4)]
-		, fit = m1
 		, fitcoefs = rs_ests 
 		, res = d
 		, summary = summ1 
@@ -254,7 +238,8 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 }
 #~ sim_inference_clusterwise_logistic( o  )
 
-#' @export 
+
+# TODO deprecate 
 sim_experiment1 <- function(
 	tfins = seq( lubridate::decimal_date( as.Date( "2021-05-07"))
 		, lubridate::decimal_date( as.Date( "2021-05-28"))
@@ -286,7 +271,32 @@ sim_experiment1 <- function(
 	X
 }
 
-#~ X <- sim_experiment1(tfins = seq( lubridate::decimal_date( as.Date( "2021-05-07"))
-#~ 		, lubridate::decimal_date( as.Date( "2021-05-28"))
-#~ 		, by = 7/365 )
-#~ ) 
+#' @export 
+sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")), TFIN, RHO0, ... )
+{
+	o = sim_replicate( 
+		  mu = MU #cf coguk/g2-adf3.rds, based on B117
+		  , tfin = TFIN 
+		  , rho0 = RHO0
+		 , ...
+	)
+	f = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
+	#c( (tt - MU)*365, o1$coef  )
+	
+	list( 
+		data = o 
+		, fit = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( f$coef[1] )
+			, p = unname( f$coef[2]  ) 
+		)
+		, mu = MU 
+		, rho0 = RHO0 
+		, minClusterSize = 5 
+		, fit = f 
+		, call = as.list(match.call())
+	)
+}
+
+
