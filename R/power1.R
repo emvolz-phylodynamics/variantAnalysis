@@ -286,7 +286,7 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 	
 	print( nrow(o))
 	list( 
-		data = o[1:min(nrow(o), 10e3) , ]
+		data = o[1:min(nrow(o), 100e3) , ]
 		, fit = data.frame( 
 			tfin = TFIN 
 			, window = floor( (TFIN - MU)*365 )
