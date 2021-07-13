@@ -33,7 +33,7 @@ scanner_output = function(lineages = "B.1.525", mutations = NULL, cut_off = NULL
          scanner_run_date = "2021-03-19",
          path_to_data = "../", path_to_metadata = NULL, 
          log_growth_rate_cut_off = 0.0, defining_mutations_cut_off = 90, 
-         prop_mutations = 25, path_to_save = NULL, min_size = 25, max_size = 20000,
+         prop_mutation = 25, path_to_save = NULL, min_size = 25, max_size = 20000,
          max_date = "2021-03-04", min_date = "2020-11-01", 
          include_pillar1 = FALSE, generation_time = 6.5, 
          prop_cluster = 10) { 
