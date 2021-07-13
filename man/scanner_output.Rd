@@ -14,7 +14,7 @@ scanner_output(
   path_to_metadata = NULL,
   log_growth_rate_cut_off = 0,
   defining_mutations_cut_off = 90,
-  prop_mutations = 25,
+  prop_mutation = 25,
   path_to_save = NULL,
   min_size = 25,
   max_size = 20000,
