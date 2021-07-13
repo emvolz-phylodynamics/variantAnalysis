@@ -34,7 +34,7 @@ scanner_output(
 5 selected, will use this as a Growth rates > x cut off. If cut_off >= 5 selected, will return the clusters 
 with top x growth rates.}
 
-\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv & scanner_env)}
+\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv and scanner_env)}
 
 \item{path_to_data}{Path to COG tree and COG tree metadata (sample_date, )}
 
