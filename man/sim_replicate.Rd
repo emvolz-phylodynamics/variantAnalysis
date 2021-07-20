@@ -14,7 +14,8 @@ sim_replicate(
   Rancestral = 0.9,
   Rsd = 0.2,
   rho0 = 0.9,
-  rho1 = 0.66
+  rho1 = 0.66,
+  seir_gen = NULL
 )
 }
 \description{

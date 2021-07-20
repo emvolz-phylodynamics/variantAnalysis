@@ -11,7 +11,8 @@ sim_cluster_growth(
   Rsd = 0.2,
   non_extinction = 0,
   ntries = 10,
-  seir_gen = NULL
+  seir_gen = NULL,
+  ...
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ sim_cluster_growth(
 \item{Rsd}{std dev of R}
 
 \item{non_extinction}{Minimum cumulative infections required to return trajectory}
+
+\item{...}{additional arguments are passed to seir model generator (e.g. for changing initial conditions)}
 }
 \value{
 Matrix with simulation output

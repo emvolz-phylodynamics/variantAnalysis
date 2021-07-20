@@ -4,7 +4,7 @@
 \alias{sim_sampling_cluster}
 \title{Simulate sampling times given cluster trajectory and sample rate}
 \usage{
-sim_sampling_cluster(X, rho0 = 0.1, rho1 = 0.25)
+sim_sampling_cluster(X, rho0 = 0.1, rho1 = 1 - 0.66)
 }
 \arguments{
 \item{X}{output of sim_cluster_growth}

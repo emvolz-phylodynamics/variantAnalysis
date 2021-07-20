@@ -38,11 +38,14 @@ En_IhR <- gamma2 * Ih * dx
 n_IhR <- max(0, rnorm( En_IhR, sqrt( En_IhR )))
 
 
-## initial 
-initial(cI) <- 1
-initial(E) <- 1
-initial(Ih) <- 0 
-initial(Il) <- 0 
+## initial , approx distribution if Rt is close to one
+initial(cI) <- EI0
+#~ initial(E) <- 1
+#~ initial(Ih) <- 0 
+#~ initial(Il) <- 0 
+initial(E) <- EI0 * (1/gamma1) / (1/gamma1 + 1/gamma2) 
+initial(Ih) <- EI0 * ph * (1/gamma2) / (1/gamma1 + 1/gamma2 )
+initial(Il) <- EI0 * (1-ph) * (1/gamma2) / (1/gamma1 + 1/gamma2 )
 
 ## inputs
 R <- user( 1.75 ) 
@@ -53,3 +56,4 @@ tini <- user( 0 )
 tequil <- user( 45 ) 
 ph <- user( .2 ) 
 tau <- user( 74 ) 
+EI0 <- user(1)   # initial infections

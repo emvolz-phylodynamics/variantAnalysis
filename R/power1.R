@@ -8,12 +8,14 @@
 #' @param R Expected reproduction number
 #' @param Rsd std dev of R 
 #' @param non_extinction Minimum cumulative infections required to return trajectory 
+#' @param ... additional arguments are passed to seir model generator (e.g. for changing initial conditions)
 #' @return Matrix with simulation output 
 sim_cluster_growth <- function(tstart, tfin, R
 	, Rsd = .2
 	, non_extinction = 0
 	, ntries = 10  
-	, seir_gen = NULL )
+	, seir_gen = NULL 
+	, ... )
 {
 	if ( tstart >= tfin ){
 		return ( NULL )
@@ -24,7 +26,7 @@ sim_cluster_growth <- function(tstart, tfin, R
 		fn = system.file( 'stochastic_seir2.R', package = 'variantAnalysis' )
 		suppressMessages( {seir_gen = odin::odin( fn ) } )
 	}
-	seir_sim <- seir_gen( R = .R ,  Requil = R, tini = tstart, tequil = tfin)
+	seir_sim <- seir_gen( R = .R ,  Requil = R, tini = tstart, tequil = tfin, ... )
 	tries <- 0 
 	while( (finci < non_extinction) & (tries < ntries) ) {
 		X = seir_sim$run( seq( tstart, tfin, by = 1) ) 
@@ -65,7 +67,7 @@ sim_importation_time <- function(E_imports0, E_imports1, mu, sigma ) {
 #' @param rho0 probability that case is sampled 
 #' @param rho1 probability that case is diagnosed 
 #' @return vector of sample times 
-sim_sampling_cluster <- function( X,  rho0 = .10 , rho1 = .25 ) 
+sim_sampling_cluster <- function( X,  rho0 = .10 , rho1 = 1-.66 ) 
 {
 	N <- floor( tail(X[, 'cI'], 1) )
 	n <- rbinom( 1, N, rho0*rho1 )
@@ -79,7 +81,7 @@ sim_sampling_cluster <- function( X,  rho0 = .10 , rho1 = .25 )
 		w <- rep(1 , length( w) )
 	}
 	if ( any( is.na( w ))) {
-		browser()  
+		#browser()  
 		return( NULL )
 	}
 	ti <- sample.int( nrow(X)
@@ -151,7 +153,25 @@ sim_replicate <- function(
 		)
 	}))
 	
-	rbind( samp0, samp1 )	
+	
+	# also simulate large endogenous epidemic of incumbent lineage
+	ninf0 <- length( itimes$variant ) * 5
+	.tstart <- as.numeric( as.Date( date_decimal( min( itimes$variant)  ) ) - as.Date( '2021-01-01' ) ) - 14
+	ctraj2 <- sim_cluster_growth(.tstart, .tfin, Rancestral, Rsd= 0.001, non_extinction = 10, EI0=ninf0 )
+	ssc2 =  sim_sampling_cluster( ctraj2, rho0 = rho0, rho1 = rho1 ) 
+	samp2 <- data.frame( cluster = paste(sep='.', 'ancestral', 'domestic' )
+	 , sample_time = ssc2
+	 , lineage = 'ancestral'
+	 , stringsAsFactors = FALSE
+	)
+	
+	list(
+		clusterdf = rbind( samp0, samp1 ) # for comparison with reimported ancestral 
+		, clusterdf2 = rbind( samp0, samp2 ) # for comparision with domestic ancestral 
+		, variant_df = samp0
+		, reimportedAncestral_df = samp1
+		, domesticAncestral_df = samp2 
+	)
 }
 
 
@@ -169,6 +189,7 @@ sim_replicate <- function(
 
 #~ m = glm( (lineage=='variant') ~ sample_time , family = binomial( link = 'logit' ) , data = o ); summary( m )
 #~ m = mgcv::gam( as.factor( cluster )  ~ sample_time * lineage , data = o1 , family = mgcv::multinom(K = length(unique( o1$cluster)))  )
+
 
 #' @export 
 sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres = FALSE)
@@ -240,37 +261,6 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 #~ sim_inference_clusterwise_logistic( o  )
 
 
-# TODO deprecate 
-sim_experiment1 <- function(
-	tfins = seq( lubridate::decimal_date( as.Date( "2021-05-07"))
-		, lubridate::decimal_date( as.Date( "2021-05-28"))
-		, by = 7/365 )
-	, nreps = 1
-	, ... # passed to sim_replicate (tfin and mu passed separately)
-) {
-	library( lubridate )
-	MU <- decimal_date( as.Date( "2021-04-18"))
-	do.call( rbind, lapply( 
-		tfins , function(tt){
-			do.call( rbind, lapply( 1:nreps , function(i) {
-				tryCatch( {
-					o = sim_replicate( 
-						  mu = MU #cf coguk/g2-adf3.rds, based on B117
-						 , tfin = tt
-						 , ...
-					)
-					o1 = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
-					c( (tt - MU)*365, o1$coef  )
-				}, error = function(e)  {
-					print(e); 
-					c( (tt-MU)*365 , 0, 1 )
-				})
-			}))
-		}
-	)) -> X 
-	
-	X
-}
 
 #' @export 
 sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")), TFIN, RHO0, ... )
@@ -281,22 +271,31 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 		  , rho0 = RHO0 
 		 , ...
 	)
-	f = sim_inference_clusterwise_logistic(o, minClusterSize = 5 , showres = FALSE)
+	f = sim_inference_clusterwise_logistic(o$clusterdf, minClusterSize = 5 , showres = FALSE)
 	#c( (tt - MU)*365, o1$coef  )
 	
-	print( nrow(o))
+	f2 = sim_inference_clusterwise_logistic(o$clusterdf2, minClusterSize = 5 , showres = FALSE)
+	
+	print( nrow(o) )
 	list( 
-		data = o[1:min(nrow(o), 100e3) , ]
+		data = o$clusterdf[1:min(nrow(o$clusterdf), 100e3) , ]
 		, fit = data.frame( 
 			tfin = TFIN 
 			, window = floor( (TFIN - MU)*365 )
 			, coef = unname( f$coef[1] )
 			, p = unname( f$coef[2]  ) 
 		)
+		, fit_domestic = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( f2$coef[1] )
+			, p = unname( f2$coef[2]  ) 
+		)
 		, mu = MU 
 		, rho0 = RHO0 
 		, minClusterSize = 5 
-		, fit = f 
+		, f1 = f 
+		, f2 = f2 
 		#, call = as.list(match.call())
 	)
 }
