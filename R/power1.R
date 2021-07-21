@@ -164,7 +164,6 @@ sim_replicate <- function(
 	 , lineage = 'ancestral'
 	 , stringsAsFactors = FALSE
 	)
-	
 	list(
 		clusterdf = rbind( samp0, samp1 ) # for comparison with reimported ancestral 
 		, clusterdf2 = rbind( samp0, samp2 ) # for comparision with domestic ancestral 
@@ -226,14 +225,12 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 		m = glm( y ~ sample_time , data = X, family = binomial(link='logit' ))
 		
 		# store to plot
-		ms[[i]] <- m
-	}
-	rs_ests <- sapply(ms,function(m) 
-		c( 
+		ms[[i]] <- c( 
 			coef(m)[2] 
-			, tryCatch( suppressMessages({confint(m)[2,]}), error = function(e) { return(c(NA,NA))})  
+			, summary( m ) $coef[ 2,2] 
 		)
-	)
+	}
+	rs_ests <- do.call( cbind , ms ) 
 	rs_ests_wt <- rs_ests[ , clust_lineage == 'ancestral' ]
 	rs_ests_mutant <- rs_ests[ , clust_lineage == 'variant' ]
 	
@@ -244,15 +241,14 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 	#print( kruskal.test( list(  rs_ests_wt[1,], rs_ests_mutant[1, ] )  )  )
 	
 	d <- as.data.frame( t( rs_ests ))
-	colnames(d) <- c( 's', 'lb', 'ub'  )
+	colnames(d) <- c( 's', 'stderr'  )
 	d$lineage <- clust_lineage
-	d$w <- with( d , 1 / abs(ub - lb) )
+	d$w <- with( d , 1 / stderr )
 	
 	m1 = lm( s ~ lineage , data =d, weight = w )
 	summ1 = summary( m1 )
-	
 	list(
-		coef = summ1$coefficients[ 2, c(1, 4)]
+		coef = summ1$coefficients[ 2, c(2, 4)]
 		, fitcoefs = rs_ests 
 		, res = d
 		#, summary = summ1 
