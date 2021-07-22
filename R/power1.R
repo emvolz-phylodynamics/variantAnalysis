@@ -225,9 +225,13 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 		m = glm( y ~ sample_time , data = X, family = binomial(link='logit' ))
 		
 		# store to plot
+		cf = tryCatch( summary( m )$coefficients[ 2, 2 ], error = function(e){
+			print(e)
+			1
+		})
 		ms[[i]] <- c( 
 			coef(m)[2] 
-			, summary( m ) $coef[ 2,2] 
+			, cf
 		)
 	}
 	rs_ests <- do.call( cbind , ms ) 
