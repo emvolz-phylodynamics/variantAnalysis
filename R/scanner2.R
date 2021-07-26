@@ -105,51 +105,71 @@ print(paste('Starting ', Sys.time()) )
 		poedges <- tre$edge[ ape::postorder( tre ), ]
 		preedges <- tre$edge[ rev( ape::postorder( tre )), ]
 		
+		
 		# PRECOMPUTE for each node 
-		# descendants; note also counts mrca node 
-		descendants <- lapply( 1:(n+nnode), function(u) u )
+		# num descendents
+		ndesc <- rep( 0, n + nnode )
+		ndesc[1:n] <- 1 
+		Ndesc <- rep( 1, n + nnode ) # include internal nodes
 		for (ie in 1:nrow(poedges)){
 			a <- poedges[ie,1]
 			u <- poedges[ie,2]
-			descendants[[a]] <- c( descendants[[a]], descendants[[u]] )
+			ndesc[a] <- ndesc[a] + ndesc[u] 
+			Ndesc[a] <- Ndesc[a] + Ndesc[u]  
 		}
 		
-		# descendant tips
-		descendantTips <- lapply( 1:(n+nnode), function(u) c(NA) )
-		## tip labels, only including names in amd which meet inclusion criteria 
-		descendantSids <- lapply( 1:(n+nnode), function(u) c(NA) )
-		for (u in 1:n){
-			#descendantTips[[u]] <- u 
-			descendantSids[[u]] <- tre$tip.label[u] 
-		}
+		
+		# descendants; note also counts mrca node 
+		descendants <- lapply( 1:(n+nnode), function(u) integer( Ndesc[u] ) )  #pre allocate 
+		for ( u in 1:(n+nnode) )
+			descendants[[u]][1] <- u 
+		Ndesc_index <- rep( 2, n + nnode )
 		for (ie in 1:nrow(poedges)){
 			a <- poedges[ie,1]
 			u <- poedges[ie,2]
-			descendantSids[[a]] <- c( descendantSids[[a]], descendantSids[[u]] )
+			## mem efficient way to fill in values for a
+			i0 <- Ndesc_index[a] 
+			i1 <- Ndesc[u] + i0 - 1
+			descendants[[a]][ i0:i1 ] <- descendants[[u]]  
+			Ndesc_index[a] <- i1 + 1 
 		}
-		## remove NA sids (not in amd)
-		for (u in (n+1):(n+nnode)) {
-			descendantSids[[u]] <- na.omit( descendantSids[[u]] )
-			if ( length( descendantSids[[u]] ) > 0 ){
-				descendantTips[[u]] <- match(descendantSids[[u]], tre$tip.label ) 
-			}
-		}
+		
+		# descendant tips; index of tip 
+		descendantTips <- descendants
+		for (a in (n+1):(n+nnode))
+			descendantTips[[a]] <- descendantTips[[a]][ descendantTips[[a]] <= n ]
+		## tip labels, only including names in amd which meet inclusion criteria (excl NA )
+		descendantSids <- lapply( 1:(n+nnode), function(u) na.omit(  tre$tip.label[ descendantTips[[u]] ] ) )
 		
 		# ancestors
-		ancestors <- lapply( 1:(n+nnode), function(u) c() )
+		st0 <- Sys.time()
+		ancestors <- lapply( 1:(n+nnode), function(u) integer() )
 		for (ie in 1:nrow(preedges)){
 			a <- preedges[ie,1]
 			u <- preedges[ie,2]
 			ancestors[[u]] <- c( ancestors[[a]], a)
 		}
+		st1 <- Sys.time()
+		print( paste(st1-st0, 'ancestor comp time')) #TODO 
 		
-		# only counting tips in amd 
-		## number tips desc 
-		ndesc <- sapply( 1:(n+nnode), function(u) length( descendantSids[[u]] ) )
 		## vector samp time desc 
-		descsts = lapply( 1:(n+nnode), function(u) sts[ na.omit( descendantSids[[u]] )  ]  )
+		# TODO slow 
+		if (FALSE )
+		{
+			st0 <- Sys.time() 
+	#~ 		descsts = lapply( 1:(n+nnode), function(u) sts[  descendantSids[[u]]  ]  )
+	#~ 		descsts = parallel::mclapply( 1:(n+nnode), function(u) sts[  descendantSids[[u]]  ]  , mc.cores = ncpu)
+			descsts = NULL 
+			st1 <- Sys.time() 
+			print( paste(st1-st0, 'descsts comp time')) #TODO 
+		}
+		
 	}
-	print(paste('Derived lookup variables', Sys.time()) ) 
+	message(paste('Derived lookup variables', Sys.time()) ) 
+	
+	.descsts <- function( u )  {
+		sts[ descendantSids[[u]] ]
+	}
 	
 	.get_comparator_ancestor <- function(u, num_comparison = num_ancestor_comparison)
 	{
@@ -165,8 +185,9 @@ print(paste('Starting ', Sys.time()) )
 			}
 		}
 		if ( na < nu ){
-			#browser() 
-			message('Failed to find comparator ancestor with more tips. Returning NA. Node: ', u) 
+			if ( na > 0 ){
+				message('Failed to find comparator ancestor with more tips. Returning NA. Node: ', u) 
+			}
 			return (NA) 
 		}
 		a
@@ -182,7 +203,8 @@ print(paste('Starting ', Sys.time()) )
 		 
 		 nu <- ndesc[u] 
 		 tu =  descendantSids[[u]] 
-		 stu = descsts [[ u ]]
+		 stu = .descsts( u  )
+		#~ 		 stu = descsts [[ u ]]
 		 minstu = min(na.omit(stu ))
 		 maxstu = max(na.omit(stu) )
 		 
@@ -204,7 +226,8 @@ print(paste('Starting ', Sys.time()) )
 			return(0)
 		tu = descendantSids[[u]] 
 		sta = sts[ ta ]
-		stu = descsts [[ u ]]
+		stu = sts[ tu ]
+		#~ 		stu = descsts [[ u ]]
 		X = data.frame( time = c( sta, stu ), type = c( rep('control', length(ta)), rep('clade',length(tu)) ) )
 		X = na.omit( X ) 
 		m = glm( type=='clade' ~ time, data = X, family = binomial( link = 'logit' ))
@@ -213,7 +236,6 @@ print(paste('Starting ', Sys.time()) )
 		p = NA 
 		if ( is.na( rv )){
 			message( 'NA growth stat, node: ', u  )	
-			#browser()
 		} else{ 
 			p = s$coefficients[2, 4 ]
 		}
@@ -232,7 +254,8 @@ print(paste('Starting ', Sys.time()) )
 			setdiff( descendantSids[[a]] , tu )
 		, error = function(e) browser() )
 		sta = sts[ ta ]
-		stu = descsts [[ u ]]
+		stu = sts[ tu ]
+		#~ 		stu = descsts [[ u ]]
 		
 		iu = match( tu , tre$tip.label )
 		ia = match( ta , tre$tip.label )
@@ -271,6 +294,7 @@ print(paste('Starting ', Sys.time()) )
 			X
 		}, mc.cores = ncpu )
 	)
+	Y <- Y[ order( Y$logistic_growth_rate , decreasing=TRUE ), ] 
 	
 	dir.create(output_dir, showWarnings = FALSE)
 	ofn1 = glue( paste0( output_dir, '/scanner-{max_date}.rds' ) )
@@ -279,17 +303,17 @@ print(paste('Starting ', Sys.time()) )
 	saveRDS( Y , file=ofn1   )
 	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	message('saving image ... ' ) 
-	e0 = list( descendantSids = descendantSids
+	e0 = list(  Y = Y 
+	  , descendantSids = descendantSids
 	  , ancestors = ancestors
 	  , sts = sts 
 	  , tre = tre
 	  , descendantTips = descendantTips
 	  , descendants = descendants 
-	  , Y = Y 
 	  , nodedata = nodedata
 	  , ndesc = ndesc
 	  , descsts = descsts 
-	  , amd = amd[ , c('sequence_name', 'central_sample_id', 'sample_time', 'sample_date', 'region') ] 
+	  , amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region') ] 
 	)  
 	saveRDS(e0, file=ofn3)
 	message( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.'  ) )
