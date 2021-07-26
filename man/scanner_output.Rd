@@ -14,7 +14,7 @@ scanner_output(
   path_to_metadata = NULL,
   log_growth_rate_cut_off = 0,
   defining_mutations_cut_off = 90,
-  prop_mutations = 25,
+  prop_mutation = 25,
   path_to_save = NULL,
   min_size = 25,
   max_size = 20000,
@@ -34,7 +34,7 @@ scanner_output(
 5 selected, will use this as a Growth rates > x cut off. If cut_off >= 5 selected, will return the clusters 
 with top x growth rates.}
 
-\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv & scanner_env)}
+\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv and scanner_env)}
 
 \item{path_to_data}{Path to COG tree and COG tree metadata (sample_date, )}
 
