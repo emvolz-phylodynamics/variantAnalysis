@@ -4,7 +4,6 @@
 #' Computes a logistic growth rate and a statistic for outlying values in a molecular clock (root to tip regression).
 #' Comparison sample is matched by time and region.
 #' 
-#' TODO: include patientid in metadata & deduplicate 
 #' add optional 'sample_weight' to metadata, use in regression models 
 #' 
 #' @param tre A rooted phylogeny in ape::phylo or treeio::treedata form. The latter may include internal node labels and be read by '.read.beast'. 
@@ -153,23 +152,11 @@ print(paste('Starting ', Sys.time()) )
 		print( paste(st1-st0, 'ancestor comp time')) #TODO 
 		
 		## vector samp time desc 
-		# TODO slow 
-		if (FALSE )
-		{
-			st0 <- Sys.time() 
-	#~ 		descsts = lapply( 1:(n+nnode), function(u) sts[  descendantSids[[u]]  ]  )
-	#~ 		descsts = parallel::mclapply( 1:(n+nnode), function(u) sts[  descendantSids[[u]]  ]  , mc.cores = ncpu)
-			descsts = NULL 
-			st1 <- Sys.time() 
-			print( paste(st1-st0, 'descsts comp time')) #TODO 
-		}
+		descsts = NULL #deprecate 
 		
 	}
 	message(paste('Derived lookup variables', Sys.time()) ) 
 	
-	.descsts <- function( u )  {
-		sts[ descendantSids[[u]] ]
-	}
 	
 	.get_comparator_ancestor <- function(u, num_comparison = num_ancestor_comparison)
 	{
@@ -203,7 +190,7 @@ print(paste('Starting ', Sys.time()) )
 		 
 		 nu <- ndesc[u] 
 		 tu =  descendantSids[[u]] 
-		 stu = .descsts( u  )
+		 stu = sts[ tu ]
 		#~ 		 stu = descsts [[ u ]]
 		 minstu = min(na.omit(stu ))
 		 maxstu = max(na.omit(stu) )
@@ -227,7 +214,6 @@ print(paste('Starting ', Sys.time()) )
 		tu = descendantSids[[u]] 
 		sta = sts[ ta ]
 		stu = sts[ tu ]
-		#~ 		stu = descsts [[ u ]]
 		X = data.frame( time = c( sta, stu ), type = c( rep('control', length(ta)), rep('clade',length(tu)) ) )
 		X = na.omit( X ) 
 		m = glm( type=='clade' ~ time, data = X, family = binomial( link = 'logit' ))
