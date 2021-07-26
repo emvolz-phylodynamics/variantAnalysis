@@ -15,7 +15,7 @@
 #' @param max_date Only include samples before and including this date
 #' @param ncpu number cpu for multicore ops 
 #' @param output_dir Path to directory where results will be saved 
-#' @param include_pillar1 if TRUE (default FALSE), will include Pillar 1 samples when computing stats
+#' @param include_pillar1 if TRUE (default TRUE), will include Pillar 1 samples when computing stats
 #' @param country Optional, only include data from this country 
 #' @param num_ancestor_comparison When finding comparison sample for molecular clock stat, make sure sister clade has at least this many tips 
 #' @param factor_geo_comparison  When finding comparison sample based on geography, make sure sample has this factor times the number within clade of interest
@@ -25,7 +25,7 @@ scanner2 <- function(tre
  , amd
  , min_descendants = 30 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8
  , output_dir = '.' 
- , include_pillar1 = FALSE 
+ , include_pillar1 = TRUE 
  , country = NULL 
  , num_ancestor_comparison = 500
  , factor_geo_comparison = 5
@@ -64,8 +64,8 @@ print(paste('Starting ', Sys.time()) )
 	amd$sample_date <- as.Date( amd$sample_date )
 	if ( !('sample_time' %in% colnames(amd))){
 		amd$sample_time = decimal_date (amd$sample_date)
-		amd$sts <- amd$sample_time 
 	}
+	amd$sts <- amd$sample_time 
 	if ( !('country' %in% colnames(amd)) )
 		amd$country = 'country_not_specified'
 	if ( !('pillar_2' %in% colnames(amd)) ){
@@ -86,8 +86,8 @@ print(paste('Starting ', Sys.time()) )
 	}
 	
 	# sample time 
-	amd <- amd [ (amd$sts >= min_time) & (amd$sts <= max_time) , ] 
-	sts <- setNames( amd$sts , amd$sequence_name )
+	amd <- amd [ (amd$sample_time >= min_time) & (amd$sts <= max_time) , ] 
+	sts <- setNames( amd$sample_time , amd$sequence_name )
 	
 	## treat tip labs not in amd differently 
 	tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
