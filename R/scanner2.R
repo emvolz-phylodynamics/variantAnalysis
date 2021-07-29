@@ -12,23 +12,29 @@
 #' @param max_descendants Clade can have at most this many tips 
 #' @param min_date Only include samples after this data 
 #' @param max_date Only include samples before and including this date
+#' @param min_cluster_age_yrs Only include clades that have sample tips that span at least this value
 #' @param ncpu number cpu for multicore ops 
 #' @param output_dir Path to directory where results will be saved 
 #' @param include_pillar1 if TRUE (default TRUE), will include Pillar 1 samples when computing stats
 #' @param country Optional, only include data from this country 
 #' @param num_ancestor_comparison When finding comparison sample for molecular clock stat, make sure sister clade has at least this many tips 
 #' @param factor_geo_comparison  When finding comparison sample based on geography, make sure sample has this factor times the number within clade of interest
-#' @param generation_time_scale Approximate generation time in years 
+#' @param Tg Approximate generation time in years 
+#' @param report_freq Print progress for every n'th node 
 #' @export 
 scanner2 <- function(tre
  , amd
- , min_descendants = 30 , max_descendants = 20e3, min_date = NULL, max_date = NULL , ncpu = 8
+ , min_descendants = 30 
+ , max_descendants = 20e3
+ , min_cluster_age_yrs = 1.5/12
+ , min_date = NULL, max_date = NULL , ncpu = 8
  , output_dir = '.' 
  , include_pillar1 = TRUE 
  , country = NULL 
  , num_ancestor_comparison = 500
  , factor_geo_comparison = 5
  , Tg = 6.5/365
+ , report_freq = 50 
 )
 {
 print(paste('Starting ', Sys.time()) )
@@ -65,6 +71,8 @@ print(paste('Starting ', Sys.time()) )
 		amd$sample_time = decimal_date (amd$sample_date)
 	}
 	amd$sts <- amd$sample_time 
+	# exclude missing dates 
+	amd <- amd[ !is.na( amd$sample_time ) , ] 
 	if ( !('country' %in% colnames(amd)) )
 		amd$country = 'country_not_specified'
 	if ( !('pillar_2' %in% colnames(amd)) ){
@@ -84,7 +92,7 @@ print(paste('Starting ', Sys.time()) )
 		amd <- amd[ amd$pillar_2 == 'True' , ]
 	}
 	
-	# sample time 
+	# filter by sample time 
 	amd <- amd [ (amd$sample_time >= min_time) & (amd$sts <= max_time) , ] 
 	sts <- setNames( amd$sample_time , amd$sequence_name )
 	
@@ -107,15 +115,23 @@ print(paste('Starting ', Sys.time()) )
 		
 		# PRECOMPUTE for each node 
 		# num descendents
-		ndesc <- rep( 0, n + nnode )
+		ndesc <- rep( 0, n + nnode ) # n tips descending 
 		ndesc[1:n] <- 1 
 		Ndesc <- rep( 1, n + nnode ) # include internal nodes
+		# max and min sample times of descendants :
+		tlsts <- sts[ tre$tip.label ]
+		max_desc_time <- rep(-Inf, n + nnode ); max_desc_time[1:n] <- tlsts 
+		min_desc_time <- rep(Inf, n + nnode ); min_desc_time[1:n] <- tlsts 
+		# postorder traverse
 		for (ie in 1:nrow(poedges)){
 			a <- poedges[ie,1]
 			u <- poedges[ie,2]
 			ndesc[a] <- ndesc[a] + ndesc[u] 
 			Ndesc[a] <- Ndesc[a] + Ndesc[u]  
+			max_desc_time[a] <- max( max_desc_time[a] , max_desc_time[u] )
+			min_desc_time[a] <- min( min_desc_time[a] , min_desc_time[u] )
 		}
+		clade_age <- max_desc_time - min_desc_time # time span of descendant tips
 		
 		
 		# descendants; note also counts mrca node 
@@ -149,7 +165,6 @@ print(paste('Starting ', Sys.time()) )
 			ancestors[[u]] <- c( ancestors[[a]], a)
 		}
 		st1 <- Sys.time()
-		print( paste(st1-st0, 'ancestor comp time')) #TODO 
 		
 		## vector samp time desc 
 		descsts = NULL #deprecate 
@@ -255,8 +270,9 @@ print(paste('Starting ', Sys.time()) )
 	}
 	
 	# main 
-	## collect nodes with more than x descedants 
-	nodes = which(  (ndesc >= min_descendants)   &   (ndesc <= max_descendants) )
+	## compute stats for subset of nodes based on size and age 
+	nodes = which(  (ndesc >= min_descendants)   &   (ndesc <= max_descendants) & (clade_age >= min_cluster_age_yrs) )
+	report_nodes <- nodes[ seq(1, length(nodes), by = report_freq) ]
 	Y = do.call( rbind, 
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
@@ -277,6 +293,10 @@ print(paste('Starting ', Sys.time()) )
 			 , tips = paste( tu, collapse = '|' )
 			 , stringsAsFactors=FALSE
 			)
+			if ( u %in% report_nodes ) { # print progress 
+				i <- which( nodes == u )
+				message(paste( 'Progress' , round(100*i / length( nodes )),  '%') ) 
+			}
 			X
 		}, mc.cores = ncpu )
 	)
@@ -299,6 +319,9 @@ print(paste('Starting ', Sys.time()) )
 	  , nodedata = nodedata
 	  , ndesc = ndesc
 	  , descsts = descsts 
+	  , clade_age = clade_age
+	  , max_desc_time = max_desc_time
+	  , min_desc_time = min_desc_time
 	  , amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region') ] 
 	)  
 	saveRDS(e0, file=ofn3)
