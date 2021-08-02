@@ -9,15 +9,17 @@ scanner2(
   amd,
   min_descendants = 30,
   max_descendants = 20000,
+  min_cluster_age_yrs = 1.5/12,
   min_date = NULL,
   max_date = NULL,
   ncpu = 8,
   output_dir = ".",
-  include_pillar1 = FALSE,
+  include_pillar1 = TRUE,
   country = NULL,
   num_ancestor_comparison = 500,
   factor_geo_comparison = 5,
-  Tg = 6.5/365
+  Tg = 6.5/365,
+  report_freq = 50
 )
 }
 \arguments{
@@ -29,6 +31,8 @@ scanner2(
 
 \item{max_descendants}{Clade can have at most this many tips}
 
+\item{min_cluster_age_yrs}{Only include clades that have sample tips that span at least this value}
+
 \item{min_date}{Only include samples after this data}
 
 \item{max_date}{Only include samples before and including this date}
@@ -37,7 +41,7 @@ scanner2(
 
 \item{output_dir}{Path to directory where results will be saved}
 
-\item{include_pillar1}{if TRUE (default FALSE), will include Pillar 1 samples when computing stats}
+\item{include_pillar1}{if TRUE (default TRUE), will include Pillar 1 samples when computing stats}
 
 \item{country}{Optional, only include data from this country}
 
@@ -45,7 +49,9 @@ scanner2(
 
 \item{factor_geo_comparison}{When finding comparison sample based on geography, make sure sample has this factor times the number within clade of interest}
 
-\item{generation_time_scale}{Approximate generation time in years}
+\item{Tg}{Approximate generation time in years}
+
+\item{report_freq}{Print progress for every n'th node}
 }
 \description{
 Takes standard inputs in the form of a rooted phylogeny and data frame with required metadata (see below). 
@@ -53,6 +59,5 @@ Computes a logistic growth rate and a statistic for outlying values in a molecul
 Comparison sample is matched by time and region.
 }
 \details{
-TODO: include patientid in metadata & deduplicate 
 add optional 'sample_weight' to metadata, use in regression models
 }

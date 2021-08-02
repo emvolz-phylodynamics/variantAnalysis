@@ -221,9 +221,10 @@ print(paste('Starting ', Sys.time()) )
 		 ta
 	}
 	
-	.logistic_growth_stat <- function(u, generation_time_scale = Tg)
+	.logistic_growth_stat <- function(u, ta = NULL, generation_time_scale = Tg)
 	{
-		ta = .get_comparator_sample(u) 
+		if ( is.null(ta))
+			ta = .get_comparator_sample(u) 
 		if ( is.null( ta ))
 			return(0)
 		tu = descendantSids[[u]] 
@@ -251,9 +252,8 @@ print(paste('Starting ', Sys.time()) )
 			return( NA ) 
 		
 		tu = descendantSids[[u]]
-		ta = tryCatch( 
-			setdiff( descendantSids[[a]] , tu )
-		, error = function(e) browser() )
+		ta = setdiff( descendantSids[[a]] , tu )
+		
 		sta = sts[ ta ]
 		stu = sts[ tu ]
 		#~ 		stu = descsts [[ u ]]
@@ -269,6 +269,38 @@ print(paste('Starting ', Sys.time()) )
 		sqrt( mean( oosp^2 )  )
 	}
 	
+	.lineage_summary <- function(tips, maxrows = 4){
+		if ( is.null(tips))
+			return( '' )
+		lins = amd$lineage[ match( tips, amd$sequence_name)]
+		tx = sort(table( lins), decreasing=TRUE ) / length( lins ) 
+		if ( length( tx ) >1 ){
+			y = as.data.frame( tx ) 
+			colnames(y) <- c( 'Lineage', 'Frequency')
+		} else{
+			y = data.frame( Lineage = lins[1], Frequency = 1 )
+		}
+		y <- y [ 1:min(nrow(y),maxrows) , ]
+		y$Frequency <- paste0( round(y$Frequency*100), '%' )
+		paste( knitr::kable(y, 'simple') , collapse = '\n' ) # convert to string
+	}
+	
+	.region_summary <- function(tips, maxrows = 5){
+		if ( is.null(tips))
+			return( '' )
+		regs = amd$region[ match( tips, amd$sequence_name)]
+		tx = sort(table( regs ), decreasing=TRUE ) / length( regs ) 
+		if ( length( tx ) >1 ){
+			y = as.data.frame( tx ) 
+			colnames(y) <- c( 'Region', 'Frequency')
+		} else{
+			y = data.frame( Region = regs[1], Frequency = 1 )
+		}
+		y <- y [ 1:min(nrow(y),maxrows) , ]
+		y$Frequency <- paste0( round(y$Frequency*100), '%' )
+		paste( knitr::kable(y, 'simple') , collapse = '\n' ) # convert to string
+	}
+	
 	# main 
 	## compute stats for subset of nodes based on size and age 
 	nodes = which(  (ndesc >= min_descendants)   &   (ndesc <= max_descendants) & (clade_age >= min_cluster_age_yrs) )
@@ -276,7 +308,10 @@ print(paste('Starting ', Sys.time()) )
 	Y = do.call( rbind, 
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
-			lgs = .logistic_growth_stat ( u )
+			ta = .get_comparator_sample(u) 
+			ulins <- amd$lineage[ match( tu, amd$sequence_name)]
+			alins <- amd$lineage[ match( ta, amd$sequence_name)]
+			lgs = .logistic_growth_stat ( u, ta )
 			X = data.frame( cluster_id = ifelse(is.null(nodedata)
 				, as.character(u) 
 				,  as.character(nodedata[ as.character(u), 'cluster_id' ]) 
@@ -289,7 +324,10 @@ print(paste('Starting ', Sys.time()) )
 			 , logistic_growth_rate = lgs[1]
 			 , logistic_growth_rate_p = lgs[2] 
 			 , clock_outlier = .clock_outlier_stat(u)
-			 , lineage = paste( unique(amd$lineage[ match( tu, amd$sequence_name)]) , collapse = '|' )
+			 , lineage = paste( names(sort(table(ulins),decreasing=TRUE)) , collapse = '|' )
+			 , lineage_summary = .lineage_summary( tu ) 
+			 , cocirc_lineage_summary = .lineage_summary( ta )
+			 , region_summary = .region_summary( tu )
 			 , tips = paste( tu, collapse = '|' )
 			 , stringsAsFactors=FALSE
 			)

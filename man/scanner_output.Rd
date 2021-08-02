@@ -34,7 +34,7 @@ scanner_output(
 5 selected, will use this as a Growth rates > x cut off. If cut_off >= 5 selected, will return the clusters 
 with top x growth rates.}
 
-\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv and scanner_env)}
+\item{path_to_scanner}{Path to scanner run outputs and scanner metadata (scanner.rds, scanner.csv & scanner_env)}
 
 \item{path_to_data}{Path to COG tree and COG tree metadata (sample_date, )}
 
@@ -46,6 +46,8 @@ with top x growth rates.}
 of sequences in comparison general population cluster that must have a specific mutation for it to be considered
 a defining mutation of a cluster of interest}
 
+\item{prop_mutation}{Proportion of sequences (%) with mutations of interest across selected clusters}
+
 \item{path_to_save}{Path to directory to save markdown in, if NULL will save in current working directory}
 
 \item{max_date}{Most recent tip sample date from scanner run}
@@ -53,8 +55,6 @@ a defining mutation of a cluster of interest}
 \item{min_date}{Least recent tip sample date from scanner run}
 
 \item{prop_cluster}{Proportion of cluster (%) which much include lineage/mutation of interest to be included}
-
-\item{prop_mutation}{Proportion of sequences (%) with mutations of interest across selected clusters}
 }
 \description{
 Currently includes cumulative sum of sampled sequences, logistic growth rate and frequency in log odds over time,

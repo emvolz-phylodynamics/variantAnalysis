@@ -321,12 +321,20 @@ inner_condense_clusters <- function( Y, threshold_growth = .5 , candidate_nodes 
   keepnodes 
 }
 
+#' Computes mutations for sequences within specified clusters
+#'
+#' Also derives defining mutations by contrasting with closest ancestor
+#'
+#' @param Y summary table output of scanner
+#' @param scanner_env output of scanner
+#' @param nodes integer vector of nodes for which results will be computed. Computes for all nodes in Y if omitted
+#' @param mutdata path to file or data frame with variant information
 #' @param mut_variable Name of variable in data frame (spec by mutfn) which contains genetic variant data
 #' @export 
 cluster_muts = function( Y
  , scanner_env 
- , nodes 
- , mutfn = list.files( patt = 'cog_global_[0-9\\-]+_mutations.csv' , full.name=TRUE , path = '../phylolatest/metadata/' )
+ , nodes = NULL
+ , mutdata = list.files( patt = 'cog_global_[0-9\\-]+_mutations.csv' , full.name=TRUE , path = '../phylolatest/metadata/' )
  , mut_variable = c( 'variants', 'mutations' )
  , min_seq_contrast = 1 # sequences in ancestor clade
  , overlap_threshold = .9
@@ -339,6 +347,8 @@ cluster_muts = function( Y
 	e1 = as.environment( scanner_env )
 	attach( e1 )
 	
+	if (is.null( nodes ))
+		nodes <- Y$node_number
 	sdnodes = setdiff( nodes, Y$node_number )
 	if ( length( sdnodes ) > 0 ){
 		warning( paste('Some input nodes not found in scanner table', sdnodes, collapse = ', ') ) 
@@ -347,7 +357,13 @@ cluster_muts = function( Y
 	#Ygr1 = Y[ Y$node_number %in% nodes , ] 
 	Ygr1 <- Y[ match( nodes1, Y$node_number ), ]
 	
-	mdf = read.csv( mutfn, stringsAs=FALSE )
+	if ( is.character( mutdata )){
+		mdf = read.csv( mutdata, stringsAs=FALSE )
+	} else if (is.data.frame(mutdata)) {
+		mdf = mutdata
+	}else if ( !is.data.frame( mutdata )  ) {
+		stop('*mutdata* must be a data frame or a path to a csv ')
+	}
 	
 	cms = lapply( 1:nrow(Ygr1) , function(ku) {
 		tipsku = strsplit( Ygr1$tips[ku], split = '\\|')[[1]] 
@@ -366,27 +382,18 @@ cluster_muts = function( Y
 		vtabu = sort( table( do.call( c, strsplit( mdf.u[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.u ) )
 		vtaba = sort( table( do.call( c, strsplit( mdf.a[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.a ) )
 		
-		res = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
+		umuts = names( vtabu[ vtabu > overlap_threshold ] )
+		defining_muts = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
 		 , names(vtaba[ vtaba > overlap_threshold ]) )
+		res = list(defining=defining_muts, all=umuts  ) 
 		sort( res ) 
 	})
 	
 	detach( e1 )
 	
-	ress2 = cms 
-	#~ 	if ( length(cms) > 1 ){
-	#~ 		ress2 = lapply( cms, function( x ) setdiff( x, Reduce( intersect, cms )  ) )
-	#~ 	} 
-	names( ress2 ) <- Ygr1$node_number 
-	ress2
+	names( cms ) <- Ygr1$node_number 
+	cms
 }
-#~ cmuts = cluster_muts( Y
-#~  , e0
-#~  , ccnodes1
-#~  , mutfn = MUTFN #
-#~  , min_seq_contrast = 1 # sequences in ancestor clade
-#~  , overlap_threshold = .9
-#~ )
 
 
 
