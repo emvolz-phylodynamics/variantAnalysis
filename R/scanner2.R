@@ -342,10 +342,10 @@ print(paste('Starting ', Sys.time()) )
 	
 	dir.create(output_dir, showWarnings = FALSE)
 	ofn1 = glue( paste0( output_dir, '/scanner-{max_date}.rds' ) )
-	ofn2 = glue( paste0( output_dir, '/scanner-{max_date}.csv' ) )
+	#ofn2 = glue( paste0( output_dir, '/scanner-{max_date}.csv' ) )
 	ofn3 = glue( paste0( output_dir, '/scanner-env-{max_date}.rds' ) )
 	saveRDS( Y , file=ofn1   )
-	write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
+	#write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	message('saving image ... ' ) 
 	e0 = list(  Y = Y 
 	  , descendantSids = descendantSids

@@ -330,6 +330,7 @@ inner_condense_clusters <- function( Y, threshold_growth = .5 , candidate_nodes 
 #' @param nodes integer vector of nodes for which results will be computed. Computes for all nodes in Y if omitted
 #' @param mutdata path to file or data frame with variant information
 #' @param mut_variable Name of variable in data frame (spec by mutfn) which contains genetic variant data
+#' @param ncpu number of CPUs for parallel processing 
 #' @export 
 cluster_muts = function( Y
  , scanner_env 
@@ -338,6 +339,7 @@ cluster_muts = function( Y
  , mut_variable = c( 'variants', 'mutations' )
  , min_seq_contrast = 1 # sequences in ancestor clade
  , overlap_threshold = .9
+ , ncpu = 1
  )
 {
 	mut_variable = mut_variable[1] 
@@ -365,7 +367,7 @@ cluster_muts = function( Y
 		stop('*mutdata* must be a data frame or a path to a csv ')
 	}
 	
-	cms = lapply( 1:nrow(Ygr1) , function(ku) {
+	cms = parallel::mclapply( 1:nrow(Ygr1) , function(ku) {
 		tipsku = strsplit( Ygr1$tips[ku], split = '\\|')[[1]] 
 		mdf.u = mdf[ mdf$sequence_name %in% tipsku, ]
 		u = nodes[ku] 
@@ -378,23 +380,22 @@ cluster_muts = function( Y
 		}
 		asids = setdiff( descendantSids[[a]] ,  descendantSids[[u]] )
 		mdf.a = mdf[ mdf$sequence_name %in% asids   , ]
-
+		if ( nrow( mdf.a ) == 0  |  nrow( mdf.u ) == 0 )
+			return( list(defining = NA, all = NA ) )
 		vtabu = sort( table( do.call( c, strsplit( mdf.u[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.u ) )
 		vtaba = sort( table( do.call( c, strsplit( mdf.a[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.a ) )
 		
 		umuts = names( vtabu[ vtabu > overlap_threshold ] )
 		defining_muts = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
 		 , names(vtaba[ vtaba > overlap_threshold ]) )
-		res = list(defining=defining_muts, all=umuts  ) 
-		sort( res ) 
-	})
+		list(defining=defining_muts, all=umuts  ) 
+	}, mc.cores = ncpu)
 	
 	detach( e1 )
 	
 	names( cms ) <- Ygr1$node_number 
 	cms
 }
-
 
 
 

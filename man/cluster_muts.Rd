@@ -12,7 +12,8 @@ cluster_muts(
     path = "../phylolatest/metadata/"),
   mut_variable = c("variants", "mutations"),
   min_seq_contrast = 1,
-  overlap_threshold = 0.9
+  overlap_threshold = 0.9,
+  ncpu = 1
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ cluster_muts(
 \item{mutdata}{path to file or data frame with variant information}
 
 \item{mut_variable}{Name of variable in data frame (spec by mutfn) which contains genetic variant data}
+
+\item{ncpu}{number of CPUs for parallel processing}
 }
 \description{
 Also derives defining mutations by contrasting with closest ancestor
