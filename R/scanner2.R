@@ -363,7 +363,7 @@ print(paste('Starting ', Sys.time()) )
 	  , amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region') ] 
 	)  
 	saveRDS(e0, file=ofn3)
-	message( glue( 'Data written to {ofn1} and {ofn2} and {ofn3}. Returning data frame invisibly.'  ) )
+	message( glue( 'Data written to {ofn1} and {ofn3}. Returning data frame invisibly.'  ) )
 	invisible(Y) 
 }
 
