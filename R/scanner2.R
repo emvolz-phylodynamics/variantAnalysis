@@ -96,6 +96,11 @@ print(paste('Starting ', Sys.time()) )
 	amd <- amd [ (amd$sample_time >= min_time) & (amd$sts <= max_time) , ] 
 	sts <- setNames( amd$sample_time , amd$sequence_name )
 	
+	
+	# retain only required variables 
+	amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region', 'lineage') ] 
+	
+	
 	## treat tip labs not in amd differently 
 	tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
 	
@@ -347,23 +352,247 @@ print(paste('Starting ', Sys.time()) )
 	saveRDS( Y , file=ofn1   )
 	#write.csv( Y , file=ofn2, quote=FALSE, row.names=FALSE )
 	message('saving image ... ' ) 
-	e0 = list(  Y = Y 
-	  , descendantSids = descendantSids
-	  , ancestors = ancestors
-	  , sts = sts 
-	  , tre = tre
-	  , descendantTips = descendantTips
-	  , descendants = descendants 
-	  , nodedata = nodedata
-	  , ndesc = ndesc
-	  , descsts = descsts 
-	  , clade_age = clade_age
-	  , max_desc_time = max_desc_time
-	  , min_desc_time = min_desc_time
-	  , amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region') ] 
-	)  
+	
+	# save internal variables and functions 
+	e0 = environment() 
+	
 	saveRDS(e0, file=ofn3)
 	message( glue( 'Data written to {ofn1} and {ofn3}. Returning data frame invisibly.'  ) )
 	invisible(Y) 
+}
+
+
+
+#'
+#'
+#' @export 
+get_clusternode_gam <- function( u0, Y, e0, ... ){
+	tu = strsplit( Y$tips[ Y$node_number == u0 ], '\\|' )[[1]]
+	ta = e0$.get_comparator_sample( u0, e0, nX = 5 ) 
+	s <- e0$amd 
+	s <- s[ s$sequence_name  %in% c(tu, ta ), ]
+	s$genotype <- 'non-Cluster'
+	s$genotype[s$sequence_name %in% tu] <- paste( 'Cluster', u0 )
+	library( ggplot2 )
+	vfd <- variantAnalysis::variable_frequency_day(s, variable = "genotype", value = paste( 'Cluster', u0 ), ...) 
+	vfd
+}
+
+
+#'
+#'
+#' @export 
+get_clusternode_gam_maps <- function(u0, Y, e0 )
+{
+	s1 <- e0$amd
+	if (  ( 'epi_week' %in% colnames(s1))  &  (!('epiweek' %in% colnames(s1) ) ) ){
+		s1$epiweek<- s1$epi_week 
+	}else if  (  !( 'epi_week' %in% colnames(s1))  &  (!('epiweek' %in% colnames(s1) ) ) ){
+		ew <- lubridate::epiweek( as.Date(s1$sample_date)  )
+		i <- with( s1 ,  (year(as.Date(s1$sample_date)) > 2020)  &  (ew < 53)  )
+		ew[ i ] <- 53 + ew[i] 
+		s1$epiweek <- ew 
+	}
+	tu = strsplit( Y$tips[ Y$node_number == u0 ], '\\|' )[[1]]
+	
+	library(raster)
+	library( spdep )
+	library( cowplot ) 
+	library( ggplot2 )
+
+	shp <- shapefile(system.file('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp', package='variantAnalysis') )
+	shp <- shp[ shp$lad19cd %in% unique( s1$ltlacd ), ]
+	shpdf <- droplevels(as(shp, 'data.frame'))
+	nb <- poly2nb(shp, row.names = shpdf$lad19cd)
+	names(nb) <- attr(nb, "region.id")
+
+	s1$VUI <- FALSE
+	s1$VUI[s1$sequence_name %in% tu] <- TRUE
+	s1$n <- 1 
+	s2 = merge( aggregate( VUI ~ epiweek*ltlacd,  data = s1 , sum )
+	 , aggregate( n ~ epiweek*ltlacd,  data = s1 , length ) 
+	 , by = c('epiweek' , 'ltlacd' )
+	)
+	toadd <- setdiff( as.factor( s$ltlacd ) , s2$fac_ltlacd )
+	s2 <- rbind( s2
+		, data.frame( epiweek = max(s2$epiweek), ltlacd = toadd, VUI=0, n = 0 ) 
+	)
+	s2$fac_ltlacd = as.factor( s2$ltlacd )
+	s2 <- na.omit( s2 )
+	m1 = mgcv::gam( cbind(VUI, n - VUI) ~ s(epiweek) + s(fac_ltlacd, bs='mrf', xt=list(nb=nb), k = 50), family = binomial(link='logit'), data = s2,  method = 'REML', ctrl=gam.control(nthreads = 6))
+
+	s2$logodds = predict( m1 )
+	s2s <- split( s2, s2$ltlacd )
+	 
+	shp0 <- shapefile(system.file('Local_Authority_Districts__December_2019__Boundaries_UK_BUC.shp', package='variantAnalysis') )
+	shp0 <- fortify(shp0, region = 'lad19cd')
+	maxfreq <- max( with( s2,  exp( logodds ) / ( 1 + exp( logodds ) )  ))
+	plmap = function(EPIWEEK, cscale = FALSE ){
+		shp = shp0 
+		idf2 <- do.call( rbind, lapply( s2s, function(x)  x[x$epiweek == EPIWEEK  , ] ))
+		idf2$id <- idf2$ltlacd
+		shp <- merge(shp, idf2, by = 'id', all.x = TRUE)
+		shp <- dplyr::arrange(shp, order)
+		shp$frequency_VUI <- exp( shp$logodds ) / ( 1 + exp( shp$logodds ) )
+		shp1 = shp 
+		p0 <- ggplot(data = shp1, aes(x = long, y = lat, group = group, fill = frequency_VUI)) + geom_polygon() + coord_equal() + theme_void() + theme(legend.title = element_blank()) + ggtitle( glue( 'Epi week {EPIWEEK}' )) + scale_fill_gradient(low ='lightgrey', high ='red' ,limits = c(0,maxfreq))
+		
+		# '#f8766dff' , '#00bfc4ff'
+		#  '#cc993373' , '#3366cc64' 
+		if (!cscale) 
+			p0 <- p0 + theme( legend.pos = 'none' )
+		p0
+	}
+
+	MAXWEEK = max( s1$epiweek[s1$VUI] )-1
+	MINWEEK = MAXWEEK - 8
+	pls = lapply( MINWEEK:MAXWEEK, plmap )
+	pls[[6]] <- plmap( (MINWEEK:MAXWEEK)[6], TRUE ) 
+
+	p = plot_grid( plotlist = pls , nrow = 3 )
+	lwp = plmap( MAXWEEK, TRUE ) + ggtitle(paste('Cluster', u0)) 
+	lwp2 = lwp + theme( legend.key.size = unit(.25, "in"), legend.key.width = unit(0.1,"in") )
+
+	list( lwp2, p )
+}
+
+
+
+#'
+#'
+#' @export 
+get_clusternode_mlesky <- function( u=406318 , scanner_env=readRDS("scanner-env-2021-03-03.rds")) 
+{
+  library(mlesky)
+  library( treedater )
+  
+  e1 = as.environment( scanner_env )
+  attach( e1 )
+  
+  mr = 5.9158E-4
+  utre <- keep.tip(tre, descendantSids[[u]])
+  sample_times <- sts[utre$tip.label]
+  
+  tr <- di2multi(utre, tol = 1e-05)
+  tr = unroot(multi2di(tr))
+  tr$edge.length <- pmax(1/29000/5, tr$edge.length)
+  tr3 <- dater(unroot(tr), sts[tr$tip.label], s = 29000, omega0 = mr, 
+               numStartConditions = 0, meanRateLimits = c(mr, mr + 1e-6), ncpu = 6)
+  
+  msg <- mlskygrid(tr3, tau = NULL, tau_lower=.001, tau_upper = 10 , sampleTimes = sts[tr3$tip.label] , 
+                   res = 10, ncpu = 3)
+  
+  list( mlesky = msg, timetree = tr3, tree = tr  )
+}
+
+
+
+#' Computes mutations for sequences within specified clusters
+#'
+#' Also derives defining mutations by contrasting with closest ancestor
+#'
+#' @param scanner_env output of scanner
+#' @param nodes integer vector of nodes for which results will be computed. Computes for all nodes in Y if omitted
+#' @param mutdata path to file or data frame with variant information
+#' @param mut_variable Name of variable in data frame (spec by mutfn) which contains genetic variant data
+#' @param ncpu number of CPUs for parallel processing 
+#' @export 
+cluster_muts = function( 
+  scanner_env 
+ , nodes = NULL
+ , mutdata = list.files( patt = 'cog_global_[0-9\\-]+_mutations.csv' , full.name=TRUE , path = '../phylolatest/metadata/' )
+ , mut_variable = c( 'variants', 'mutations' )
+ , min_seq_contrast = 1 # sequences in ancestor clade
+ , overlap_threshold = .9
+ , ncpu = 1
+ )
+{
+	
+	e1 = as.environment( scanner_env )
+	attach( e1 )
+	
+	mut_variable = mut_variable[1] 
+	if ( !('tips' %in% colnames( Y)))
+		stop('Input data is missing column `tips`')
+	
+	
+	if (is.null( nodes ))
+		nodes <- Y$node_number
+	sdnodes = setdiff( nodes, Y$node_number )
+	if ( length( sdnodes ) > 0 ){
+		warning( paste('Some input nodes not found in scanner table', sdnodes, collapse = ', ') ) 
+	}
+	nodes1 <- setdiff( nodes, sdnodes ) #intersect( Y$node_number, nodes )
+	#Ygr1 = Y[ Y$node_number %in% nodes , ] 
+	Ygr1 <- Y[ match( nodes1, Y$node_number ), ]
+	
+	if ( is.character( mutdata )){
+		mdf = read.csv( mutdata, stringsAs=FALSE )
+	} else if (is.data.frame(mutdata)) {
+		mdf = mutdata
+	}else if ( !is.data.frame( mutdata )  ) {
+		stop('*mutdata* must be a data frame or a path to a csv ')
+	}
+	
+	cms = parallel::mclapply( 1:nrow(Ygr1) , function(ku) {
+		tipsku = strsplit( Ygr1$tips[ku], split = '\\|')[[1]] 
+		mdf.u = mdf[ mdf$sequence_name %in% tipsku, ]
+		u = nodes[ku] 
+		
+		## find comparator ancestor 
+		for ( a in rev( ancestors[[u]] ) ){ ## NOTE ancestors goes in order of (tree root) -> u , so rev to go from u to tree root 
+			sdt = setdiff( descendantTips[[a]] , descendantTips[[u]] ) 
+			if ( length( sdt ) >= min_seq_contrast )
+				break 
+		}
+		asids = setdiff( descendantSids[[a]] ,  descendantSids[[u]] )
+		mdf.a = mdf[ mdf$sequence_name %in% asids   , ]
+		if ( nrow( mdf.a ) == 0  |  nrow( mdf.u ) == 0 )
+			return( list(defining = NA, all = NA ) )
+		vtabu = sort( table( do.call( c, strsplit( mdf.u[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.u ) )
+		vtaba = sort( table( do.call( c, strsplit( mdf.a[[mut_variable]], split='\\|' )  ) ) / nrow( mdf.a ) )
+		
+		umuts = names( vtabu[ vtabu > overlap_threshold ] )
+		defining_muts = setdiff( names( vtabu[ vtabu > overlap_threshold ] )
+		 , names(vtaba[ vtaba > overlap_threshold ]) )
+		list(defining=defining_muts, all=umuts  ) 
+	}, mc.cores = ncpu)
+	
+	detach( e1 )
+	
+	names( cms ) <- Ygr1$node_number 
+	cms
+}
+
+
+#' 
+#'
+#' @export 
+condense_clusters <- function(  scanner_env, threshold_growth = .5 , candidate_nodes = NULL){
+  e1 = as.environment( scanner_env )
+  attach( e1 )
+  if ( is.null( candidate_nodes )){
+    candidate_nodes = cnodes = Y$node_number[ Y$logistic_growth_rate >= threshold_growth ]
+  }
+  stopifnot( length( cnodes ) > 0 )
+  keep <- sapply( cnodes, function(u){
+    tu = na.omit( descendantTips[[u]] )
+    x = sapply( setdiff(cnodes,u) , function(a) {
+      ta = na.omit(  descendantTips[[a]] )
+      alltuta = (all(tu %in% ta))
+      y = (length(ta) > length(tu))  &  alltuta
+      z = (length(ta)==length(tu)) & alltuta 
+      if (z & (a %in% ancestors[[u]])) {
+        return(FALSE) 
+      } else if (z & !(a %in% ancestors[[u]]) ){
+        return(TRUE)
+      }
+      y
+    })
+    all( !x )
+  })
+  keepnodes <- cnodes[ keep ]
+  detach( e1 ) 
+  keepnodes 
 }
 
