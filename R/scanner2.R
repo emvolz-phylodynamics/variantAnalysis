@@ -7,7 +7,7 @@
 #' add optional 'sample_weight' to metadata, use in regression models 
 #' 
 #' @param tre A rooted phylogeny in ape::phylo or treeio::treedata form. The latter may include internal node labels and be read by '.read.beast'. 
-#' @param amd A data frame containing required metadata for each tip in tree: sequence_name, sample_date, region. Optional metadata includes: pillar_2, sample_time(numeric), country. 
+#' @param amd A data frame containing required metadata for each tip in tree: sequence_name, sample_date, region. Optional metadata includes: pillar_2, sample_time(numeric), country,  lineage. 
 #' @param min_descendants Clade must have at least this many tips 
 #' @param max_descendants Clade can have at most this many tips 
 #' @param min_date Only include samples after this data 
@@ -71,6 +71,9 @@ print(paste('Starting ', Sys.time()) )
 		amd$sample_time = decimal_date (amd$sample_date)
 	}
 	amd$sts <- amd$sample_time 
+	if (!('lineage' %in% colnames( amd ))){
+		amd$lineage <- 'lineage_not_provided'
+	}
 	# exclude missing dates 
 	amd <- amd[ !is.na( amd$sample_time ) , ] 
 	if ( !('country' %in% colnames(amd)) )
