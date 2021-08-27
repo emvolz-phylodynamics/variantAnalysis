@@ -277,6 +277,42 @@ print(paste('Starting ', Sys.time()) )
 		sqrt( mean( oosp^2 )  )
 	}
 	
+	#' Compute 'proportionality' statistics for node (u) and given variable (var)
+	#' e.g. if sample is from vaccine breakthrough, is there higher odds that sample is in clade?
+	.var_proportionality_stat <- function (u, var = 'breakthrough2'
+	 , f = clade ~ time + var 
+	 , form_index = 3 
+	 , value=TRUE, ta = NULL) 
+	{
+		if (is.null(ta)) 
+			ta = .get_comparator_sample(u)
+		if (is.null(ta)) 
+			return(0)
+		tu = descendantSids[[u]]
+		sta = sts[ta]
+		stu = sts[tu]
+		X = data.frame(tip = c( ta, tu )
+					, time = c(sta, stu)
+					, type = c(rep("control", length(ta)), rep("clade", length(tu)))
+		)
+		X$var <- (amd[[var]][match(X$tip, amd$sequence_name)]==value)
+		X$clade <- (X$type == 'clade' )
+		
+		#m = glm(  var ~ time + (type=='clade'), data = X, family = binomial(link = "logit"))
+		m = glm(  f, data = X, family = binomial(link = "logit"))
+		s = summary(m)
+		rv = unname(coef(m)[form_index])
+		p = NA
+		if (is.na(rv)) {
+			message("NA proportionality stat, node: ", u)
+		}
+		else {
+			p = s$coefficients[form_index, 4]
+		}
+		c(rv, p)
+	}
+
+	
 	.lineage_summary <- function(tips, maxrows = 4){
 		if ( is.null(tips))
 			return( '' )
