@@ -13,6 +13,7 @@
 #' @param min_date Only include samples after this data 
 #' @param max_date Only include samples before and including this date
 #' @param min_cluster_age_yrs Only include clades that have sample tips that span at least this value
+#' @param min_blen Only compute statistics for nodes descended from branches of at least this length 
 #' @param ncpu number cpu for multicore ops 
 #' @param output_dir Path to directory where results will be saved 
 #' @param include_pillar1 if TRUE (default TRUE), will include Pillar 1 samples when computing stats
@@ -27,7 +28,10 @@ scanner2 <- function(tre
  , min_descendants = 30 
  , max_descendants = 20e3
  , min_cluster_age_yrs = 1.5/12
- , min_date = NULL, max_date = NULL , ncpu = 8
+ , min_date = NULL
+ , max_date = NULL 
+ , min_blen = 0
+ , ncpu = 8
  , output_dir = '.' 
  , include_pillar1 = TRUE 
  , country = NULL 
@@ -35,6 +39,17 @@ scanner2 <- function(tre
  , factor_geo_comparison = 5
  , Tg = 6.5/365
  , report_freq = 50 
+ , compute_treestructure = FALSE
+ , lsd_args = list(	givenRate = .00075
+		, seqLen = 29e3
+		, variance = 0 
+		, verbose = TRUE 
+	) 
+  , ts_args = list( minCladeSize= 50
+	, level = .001
+  )
+  , root_on_tip = 'Wuhan/WH04/2020'
+  , root_on_tip_sample_time = 2020 
 )
 {
 print(paste('Starting ', Sys.time()) )
@@ -56,6 +71,9 @@ print(paste('Starting ', Sys.time()) )
 	
 	# tree data 
 	if ( inherits ( tre, 'treedataList' ) | inherits( tre, 'treedata' )){
+		if ( compute_treestructure ){
+			stop( 'Can not compute treestructure statistics when input tree is not an ape::phylo' )
+		}
 		nodedata = as.data.frame( get.data( tre ) )
 		tre = get.tree( tre )
 		rownames( nodedata ) <- nodedata$node
@@ -105,7 +123,52 @@ print(paste('Starting ', Sys.time()) )
 	
 	
 	## treat tip labs not in amd differently 
-	tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
+	if ( compute_treestructure ) {
+		# prune the tree to match amd and make rooted
+		# date tree 
+		# make bifurcating 
+		# run treestructure 
+		library( treestructure ) 
+		library (Rlsd2 )
+		
+		# prune tree
+		if ( !( root_on_tip %in% amd$sequence_name)){
+			amd <- rbind( amd, data.frame( 
+				sequence_name = root_on_tip
+				, sample_time = root_on_tip_sample_time
+				, sample_date = as.Date( lubridate::date_decimal( root_on_tip_sample_time ) )
+				, region = NA
+				, lineage = NA
+			))
+		}
+		tre <- keep.tip( tre, intersect( tre$tip.label , amd$sequence_name )  )
+		tr2 = root( tre, outgroup= root_on_tip, resolve.root = TRUE )
+		
+		sts <- setNames( amd$sample_time[ match( tr2$tip.label, amd$sequence_name ) ] , tr2$tip.label )
+		message( paste( Sys.time() , 'Starting time tree' ))
+		lsd_args$inputTree = tr2 
+		lsd_args$inputDate = sts 
+		lt1 = do.call( Rlsd2::lsd2, lsd_args ) 
+		message( paste( Sys.time() , 'Made time tree' )) #45 mins 
+		
+		otr = as.phylo( lt1$dateNexusTreeFile ) # not a date or a nexus or a file, but it is a tree
+		otr1 = root( otr, root_on_tip , resolve.root=TRUE) # reroot tree and extract relevant clade 
+		iog = which(otr1$tip.label==root_on_tip)
+		rootnode = otr1$edge[ otr1$edge[,2]==iog ,1 ]
+		uv = otr1$edge[  otr1$edge[,1] == rootnode , 2]
+		u <- setdiff( uv, iog )
+		# overwriting 'tre'
+		tre = multi2di( extract.clade( otr1, u, root.edge = 1 )) # the timed tree excluding outgroup, made bifurcating 
+		message( paste( Sys.time() , 'Made bifurcating time tree ' ))
+		ts_args$ncpu = ncpu 
+		ts_args$tre = tre 
+		ts <- do.call( treestructure::trestruct.fast, ts_args )
+		message( paste( Sys.time() , 'Computed treestructure clusters' ))
+		
+	} else{
+		# keep the tips around so that internal node numbers will match input tree 
+		tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
+	}
 	
 	# root to tip 
 	ndel <- node.depth.edgelength( tre ) 
@@ -178,8 +241,8 @@ print(paste('Starting ', Sys.time()) )
 		descsts = NULL #deprecate 
 		
 	}
-	message(paste('Derived lookup variables', Sys.time()) ) 
 	
+	message(paste('Derived lookup variables', Sys.time()) ) 
 	
 	.get_comparator_ancestor <- function(u, num_comparison = num_ancestor_comparison)
 	{
@@ -347,8 +410,13 @@ print(paste('Starting ', Sys.time()) )
 	
 	# main 
 	## compute stats for subset of nodes based on size and age 
-	nodes = which(  (ndesc >= min_descendants)   &   (ndesc <= max_descendants) & (clade_age >= min_cluster_age_yrs) )
-	report_nodes <- nodes[ seq(1, length(nodes), by = report_freq) ]
+	nodes = which(  (ndesc >= min_descendants)   &   (ndesc <= max_descendants) & (clade_age >= min_cluster_age_yrs)   )
+	nodes_blenConstraintSatisfied <- tre$edge[ tre$edge.length > min_blen , 2]
+	nodes <- intersect( nodes, nodes_blenConstraintSatisfied )
+	if (compute_treestructure) {
+		nodes <- union( ts$cluster_mrca, nodes )
+	}
+	report_nodes <- nodes[ seq(1, length(nodes), by = report_freq) ] #progress reporting 
 	Y = do.call( rbind, 
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
@@ -383,6 +451,12 @@ print(paste('Starting ', Sys.time()) )
 		}, mc.cores = ncpu )
 	)
 	Y <- Y[ order( Y$logistic_growth_rate , decreasing=TRUE ), ] 
+	
+	## add in trestruct stat 
+	if ( compute_treestructure ){
+		zdf = data.frame( node_number = ts$cluster_mrca , treestructure_z = ts$cluster_z)
+		Y = merge( Y, zdf, all.x = TRUE, sort = FALSE  , by = 'node_number' )
+	}
 	
 	dir.create(output_dir, showWarnings = FALSE)
 	ofn1 = glue( paste0( output_dir, '/scanner-{max_date}.rds' ) )
@@ -635,3 +709,29 @@ condense_clusters <- function(  scanner_env, threshold_growth = .5 , candidate_n
   keepnodes 
 }
 
+
+#~ treestructure_scan <- function( e0, omega = .00075, s = 29e3, minCladeSize = 50, level = .001,  ncpu = 6, ...) 
+#~ {
+#~ 	library( treestructure ) 
+#~ 	library( Rlsd2 )
+#~ 	library( ape ) 
+	
+#~ 	attach( e0 )
+#~ 	message( paste( Sys.time() , 'Starting' ))
+#~ 	tr1 <- multi2di( tre )
+#~ 	message( paste( Sys.time() , 'Made bifurcating tree ' ))
+#~ 	sts <- setNames( amd$sample_time[ match( tr1$tip.label, amd$sequence_name ) ] , tr1$tip.label )
+#~ 	if ( any ( is.na( sts ))){
+#~ 		i = which( is.na( sts ))
+#~ 		tr1 <- drop.tip( tr1, names(sts)[i] )
+#~ 		sts <- sts[ tr1$tip.label ]
+#~ 	} 
+#~ 	lt1 = lsd2( inputTree=tr1, inputDate= sts, givenRate = omega, seqLen = s, constraint=FALSE) 
+#~ 	message( paste( Sys.time() , 'Made time tree' ))
+#~ 	otr = as.phylo( lt1$dateNexusTreeFile ) 
+#~ 	ts = trestruct.fast( otr, minCladeSize = minCladeSize , level = level,  ncpu = ncpu, ...) 
+#~ 	message( paste( Sys.time() , 'Computed clusters' ))
+#~ 	detach( e0 )
+	
+#~ 	ts
+#~ }

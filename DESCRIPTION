@@ -1,12 +1,12 @@
 Package: variantAnalysis
 Type: Package
 Title: sarscov2 variant analysis 
-Version: 0.0.5
-Date: 2021-08-25
+Version: 0.0.7
+Date: 2021-09-02
 Author: Erik Volz, Olivia Boyd
 Maintainer: Erik Volz <e.volz@imperial.ac.uk>
 Description: -skygrowth comparison between clusters -identify recurrent mutations & quantify offspring beneath mixed nodes -frequency analysis -molecular clock outliers
 Depends: ape,lubridate,BayesianTools,mgcv,glue
-Suggests: sarscov2,ggforce,ggplot2,coda,treeio,mlesky,smicd
+Suggests: sarscov2,ggforce,ggplot2,coda,treeio,mlesky,smicd,treestructure,Rlsd2
 License: GPL
 RoxygenNote: 7.1.1

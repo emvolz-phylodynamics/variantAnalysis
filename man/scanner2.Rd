@@ -12,6 +12,7 @@ scanner2(
   min_cluster_age_yrs = 1.5/12,
   min_date = NULL,
   max_date = NULL,
+  min_blen = 0,
   ncpu = 8,
   output_dir = ".",
   include_pillar1 = TRUE,
@@ -19,13 +20,18 @@ scanner2(
   num_ancestor_comparison = 500,
   factor_geo_comparison = 5,
   Tg = 6.5/365,
-  report_freq = 50
+  report_freq = 50,
+  compute_treestructure = FALSE,
+  lsd_args = list(givenRate = 0.00075, seqLen = 29000, variance = 0, verbose = TRUE),
+  ts_args = list(minCladeSize = 50, level = 0.001),
+  root_on_tip = "Wuhan/WH04/2020",
+  root_on_tip_sample_time = 2020
 )
 }
 \arguments{
 \item{tre}{A rooted phylogeny in ape::phylo or treeio::treedata form. The latter may include internal node labels and be read by '.read.beast'.}
 
-\item{amd}{A data frame containing required metadata for each tip in tree: sequence_name, sample_date, region. Optional metadata includes: pillar_2, sample_time(numeric), country.}
+\item{amd}{A data frame containing required metadata for each tip in tree: sequence_name, sample_date, region. Optional metadata includes: pillar_2, sample_time(numeric), country,  lineage.}
 
 \item{min_descendants}{Clade must have at least this many tips}
 
@@ -36,6 +42,8 @@ scanner2(
 \item{min_date}{Only include samples after this data}
 
 \item{max_date}{Only include samples before and including this date}
+
+\item{min_blen}{Only compute statistics for nodes descended from branches of at least this length}
 
 \item{ncpu}{number cpu for multicore ops}
 
