@@ -22,7 +22,8 @@
 #' @param factor_geo_comparison  When finding comparison sample based on geography, make sure sample has this factor times the number within clade of interest
 #' @param Tg Approximate generation time in years 
 #' @param report_freq Print progress for every n'th node 
-#' @export 
+#' @param compute_treestructure If TRUE, will compute treestructure clusters and ensure other tree stats are computed for these clusters
+#' @export
 scanner2 <- function(tre
  , amd
  , min_descendants = 30 
@@ -340,8 +341,8 @@ print(paste('Starting ', Sys.time()) )
 		sqrt( mean( oosp^2 )  )
 	}
 	
-	#' Compute 'proportionality' statistics for node (u) and given variable (var)
-	#' e.g. if sample is from vaccine breakthrough, is there higher odds that sample is in clade?
+	# Compute 'proportionality' statistics for node (u) and given variable (var)
+	# e.g. if sample is from vaccine breakthrough, is there higher odds that sample is in clade?
 	.var_proportionality_stat <- function (u, var = 'breakthrough2'
 	 , f = clade ~ time + var 
 	 , form_index = 3 
