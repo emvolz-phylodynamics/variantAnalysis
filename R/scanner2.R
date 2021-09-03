@@ -86,6 +86,7 @@ print(paste('Starting ', Sys.time()) )
 	# load coguk algn md 
 	amd <- amd[ !is.na( amd$sequence_name ) , ]
 	amd$sample_date <- as.Date( amd$sample_date )
+	stopifnot( all(tre$tip.label %in% amd$sequence_name) )
 	if ( !('sample_time' %in% colnames(amd))){
 		amd$sample_time = decimal_date (amd$sample_date)
 	}
@@ -121,7 +122,7 @@ print(paste('Starting ', Sys.time()) )
 	
 	# retain only required variables 
 	amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region', 'lineage') ] 
-	
+	amd <- amd [ amd$sequence_name %in% tre$tip.label ,  ] 
 	
 	## treat tip labs not in amd differently 
 	if ( compute_treestructure ) {
@@ -165,7 +166,6 @@ print(paste('Starting ', Sys.time()) )
 		ts_args$tre = tre 
 		ts <- do.call( treestructure::trestruct.fast, ts_args )
 		message( paste( Sys.time() , 'Computed treestructure clusters' ))
-		
 	} else{
 		# keep the tips around so that internal node numbers will match input tree 
 		tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
