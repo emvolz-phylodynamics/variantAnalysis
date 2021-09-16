@@ -261,6 +261,114 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 #~ sim_inference_clusterwise_logistic( o  )
 
 
+sim_growthinference_hierbayes <- function( md, K = 10, iterations = 1e6, thin = 1e3 )
+{
+	library( glue )
+	library( BayesianTools )
+	vcluster <- md$cluster[ grepl(md$cluster, patt = '^variant' ) ]
+	acluster <- md$cluster[ grepl(md$cluster, patt = '^ancestral' ) ]
+	keep <- c(
+		names( tail( sort(table(vcluster)), K ))
+		, names( tail( sort(table(acluster)), K ))
+		)
+	md1 <- md[ md$cluster %in% keep , ]
+	md1$fcluster = as.factor( md1$cluster )
+	md1$icluster <- as.integer( md1$fcluster ) -1 
+	
+	## change timescale to generations 
+	Tg <- 6.5
+	md1$gtime <-  md1$sample_time / Tg 
+	## make initial guess of alpha0, alpha1 and alpha2 
+	Alpha01_0 <- t(sapply( keep, function( cid ){
+		X = md1 
+		X$y <- X$cluster == cid 
+		m = glm( y ~ gtime, data = X , family = binomial( link = 'logit'))
+		coef( m ) 
+	}))
+	
+	## make initial parameter vector 
+	#theta <- as.vector( Alpha01_0 )
+	varnames <- keep[ grepl(keep, patt = '^variant') ]
+	ancnames <- keep[ grepl(keep, patt = '^ancestral') ]
+	alpha2_0 = unname( mean( Alpha01_0[varnames,2]  ) - mean( Alpha01_0[ancnames,2] ) ) 
+	### recenter slope variables 
+	Alpha01_0[ varnames, 2] <- Alpha01_0[ varnames, 2] - alpha2_0 
+	
+	keep1 <- keep[-1] # only estimate parms for k-1 
+	
+	intercept_names = paste(keep1, 'intercept', sep = '.')
+	slope_names =  paste(keep1, 'slope', sep = '.')
+	varnames1 <- intersect( varnames, keep1 )
+	variant_slopes =  paste(varnames1, 'slope', sep = '.')
+	theta <- c(  setNames( Alpha01_0[keep1,1], intercept_names  )
+		, setNames( Alpha01_0[keep1,2], slope_names )
+		, lineageEffect = alpha2_0 
+	)
+	M = length( theta )
+	pnames <- names( theta )
+	theta_upper = setNames( rep(max(2, theta[slope_names]), M), pnames )
+	theta_upper[intercept_names] <- max( 0, theta[intercept_names] )
+	theta_lower = setNames( rep(min(-2, theta[slope_names]), M), pnames )
+	theta_lower[intercept_names] <- min(-50, theta[intercept_names])
+	taxis <- sort( unique( md1$gtime ))
+	rprior <- function(n = 1)
+	{
+		if ( n > 1 ) {
+			res =  matrix( setNames( rnorm( M, 0, 1 ), pnames ), ncol = 3, nrow = length(theta )  )
+			colnames(res) <- names(theta)
+		}
+		setNames( rnorm( M, 0, 1 ), pnames )
+	}
+	dprior <- function(theta) {
+		unname( dnorm( theta[ 'lineageEffect'] , 0, 1 , log = TRUE ) + 
+		sum(dnorm( theta[slope_names] , 0, 1 , log = TRUE)) 
+		)
+	}
+	dl <- function( theta ) {
+		slope = theta[ slope_names ]
+		slope[variant_slopes] <- slope[variant_slopes] + theta[ 'lineageEffect' ]
+		inter = theta[ intercept_names ]
+		lox = sapply( 1:length( slope ), function(i){
+			slope[i] * taxis + inter[i] 
+		})
+		# overdetermined
+		px <- exp( lox ) /  ( 1 + exp( lox ))
+		## fix any over 
+		rspx <- rowSums(px)
+		i <- which( rspx  > 1 ) 
+		for ( ii in i ) 
+			px[ii, ] <- px[ii, ] / rspx[ii] 
+		## add in last cat 
+		px <- pmax( px, 0 )
+		px <- pmin( px, 1 )
+		px <- cbind( px , 1 - rowSums( px ) )
+		colnames( px  ) <- c( keep1 , keep[1] )
+		coords = cbind(match(md1$gtime, taxis) , match( md1$cluster, colnames(px)) )
+		pxterms = pmax(  px[ coords ] , 1e-4) # penalize zeros, but no inf's
+		rv = sum( log ( pxterms )) + dprior( theta )
+		#print(c( theta, rv ))
+		#print( unname( rv ) )
+		if ( is.nan(rv))
+			return( -Inf )
+		rv
+	}
+	dl1 <- function( theta ){
+		if ( is.matrix( theta )){
+			return( apply( theta, MAR=2, dl ) )
+		} 
+		dl(theta )
+	}
+	# fit the model 
+	pr0 <- createPrior( density = dprior, sampler = rprior, best = theta, upper = theta_upper, lower = theta_lower )
+	bs0 <- createBayesianSetup(dl1, prior = pr0, names = names(theta)  ) #, parallel=3)
+	.sv = matrix( rep( theta, 3 ) , ncol = 3 )
+	rownames( .sv ) <- pnames 
+	.sv <- t( .sv )
+	f0 <- runMCMC(bs0, settings = list(iterations = 1e6, thin = 1000,  startValue = .sv)) 
+	f0 
+}
+
+
 
 #' @export 
 sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")), TFIN, RHO0, ... )
