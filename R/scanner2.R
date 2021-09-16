@@ -22,7 +22,8 @@
 #' @param factor_geo_comparison  When finding comparison sample based on geography, make sure sample has this factor times the number within clade of interest
 #' @param Tg Approximate generation time in years 
 #' @param report_freq Print progress for every n'th node 
-#' @export 
+#' @param compute_treestructure If TRUE, will compute treestructure clusters and ensure other tree stats are computed for these clusters
+#' @export
 scanner2 <- function(tre
  , amd
  , min_descendants = 30 
@@ -85,6 +86,7 @@ print(paste('Starting ', Sys.time()) )
 	# load coguk algn md 
 	amd <- amd[ !is.na( amd$sequence_name ) , ]
 	amd$sample_date <- as.Date( amd$sample_date )
+	stopifnot( all(tre$tip.label %in% amd$sequence_name) )
 	if ( !('sample_time' %in% colnames(amd))){
 		amd$sample_time = decimal_date (amd$sample_date)
 	}
@@ -120,7 +122,7 @@ print(paste('Starting ', Sys.time()) )
 	
 	# retain only required variables 
 	amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region', 'lineage') ] 
-	
+	amd <- amd [ amd$sequence_name %in% tre$tip.label ,  ] 
 	
 	## treat tip labs not in amd differently 
 	if ( compute_treestructure ) {
@@ -164,7 +166,6 @@ print(paste('Starting ', Sys.time()) )
 		ts_args$tre = tre 
 		ts <- do.call( treestructure::trestruct.fast, ts_args )
 		message( paste( Sys.time() , 'Computed treestructure clusters' ))
-		
 	} else{
 		# keep the tips around so that internal node numbers will match input tree 
 		tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
@@ -340,8 +341,8 @@ print(paste('Starting ', Sys.time()) )
 		sqrt( mean( oosp^2 )  )
 	}
 	
-	#' Compute 'proportionality' statistics for node (u) and given variable (var)
-	#' e.g. if sample is from vaccine breakthrough, is there higher odds that sample is in clade?
+	# Compute 'proportionality' statistics for node (u) and given variable (var)
+	# e.g. if sample is from vaccine breakthrough, is there higher odds that sample is in clade?
 	.var_proportionality_stat <- function (u, var = 'breakthrough2'
 	 , f = clade ~ time + var 
 	 , form_index = 3 

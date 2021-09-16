@@ -60,6 +60,8 @@ scanner2(
 \item{Tg}{Approximate generation time in years}
 
 \item{report_freq}{Print progress for every n'th node}
+
+\item{compute_treestructure}{If TRUE, will compute treestructure clusters and ensure other tree stats are computed for these clusters}
 }
 \description{
 Takes standard inputs in the form of a rooted phylogeny and data frame with required metadata (see below). 
