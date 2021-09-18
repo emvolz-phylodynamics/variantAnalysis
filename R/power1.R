@@ -258,21 +258,22 @@ sim_inference_clusterwise_logistic <- function(s, minClusterSize = 25 , showres 
 		#, summary = summ1 
 	)
 }
-#~ sim_inference_clusterwise_logistic( o  )
 
 
+#' @export 
 sim_growthinference_hierbayes <- function( md, K = 10, iterations = 1e6, thin = 1e3 )
 {
 	library( glue )
 	library( BayesianTools )
 	vcluster <- md$cluster[ grepl(md$cluster, patt = '^variant' ) ]
 	acluster <- md$cluster[ grepl(md$cluster, patt = '^ancestral' ) ]
+	tvcluster <- table(vcluster)
+	tacluster = table(acluster)
 	keep <- c(
-		names( tail( sort(table(vcluster)), K ))
-		, names( tail( sort(table(acluster)), K ))
+		names( tail( sort(tvcluster[ tvcluster > 1] ), K ))
+		, names( tail( sort(tacluster[ tacluster > 1 ] ), K ))
 		)
 	md1 <- md[ md$cluster %in% keep , ]
-	md1$fcluster = as.factor( md1$cluster )
 	md1$icluster <- as.integer( md1$fcluster ) -1 
 	
 	## change timescale to generations 
@@ -307,9 +308,9 @@ sim_growthinference_hierbayes <- function( md, K = 10, iterations = 1e6, thin = 
 	M = length( theta )
 	pnames <- names( theta )
 	theta_upper = setNames( rep(max(2, theta[slope_names]), M), pnames )
-	theta_upper[intercept_names] <- max( 0, theta[intercept_names] )
+	theta_upper[intercept_names] <- max( Inf, theta[intercept_names] )
 	theta_lower = setNames( rep(min(-2, theta[slope_names]), M), pnames )
-	theta_lower[intercept_names] <- min(-50, theta[intercept_names])
+	theta_lower[intercept_names] <- min(-Inf, theta[intercept_names])
 	taxis <- sort( unique( md1$gtime ))
 	rprior <- function(n = 1)
 	{
@@ -321,10 +322,105 @@ sim_growthinference_hierbayes <- function( md, K = 10, iterations = 1e6, thin = 
 	}
 	dprior <- function(theta) {
 		unname( dnorm( theta[ 'lineageEffect'] , 0, 1 , log = TRUE ) + 
-		sum(dnorm( theta[slope_names] , 0, 1 , log = TRUE)) 
+		sum(dnorm( theta[slope_names] , 0, .1 , log = TRUE)) 
 		)
 	}
-	dl <- function( theta ) {
+	dl <- function( .theta ) {
+		
+		theta1 <- theta
+		theta1[ names(.theta) ] <- .theta 
+		
+		slope = theta1[ slope_names ]
+		slope[variant_slopes] <- slope[variant_slopes] + theta1[ 'lineageEffect' ]
+		inter = theta1[ intercept_names ]
+		lox = sapply( 1:length( slope ), function(i){
+			slope[i] * taxis + inter[i] 
+		})
+		# overdetermined
+		px <- exp( lox ) /  ( 1 + exp( lox ))
+		## fix any over 
+		rspx <- rowSums(px)
+		i <- which( rspx  > 1 ) 
+		for ( ii in i ) 
+			px[ii, ] <- px[ii, ] / rspx[ii] 
+		## add in last cat 
+		px <- pmax( px, 0 )
+		px <- pmin( px, 1 )
+		px <- cbind( px , 1 - rowSums( px ) )
+		colnames( px  ) <- c( keep1 , keep[1] )
+		coords = cbind(match(md1$gtime, taxis) , match( md1$cluster, colnames(px)) )
+		pxterms = pmax(  px[ coords ] , 1e-4) # penalize zeros, but no inf's
+		rv = sum( log ( pxterms )) #+ dprior( theta1 )
+		#print(c( theta1, rv ))
+		#print( unname( rv ) )
+		if ( is.nan(rv))
+			return( -Inf )
+		rv
+	}
+	dl1 <- function( theta ){
+		if ( is.matrix( theta )){
+			return( apply( theta, MAR=2, dl ) )
+		} 
+		dl(theta )
+	}
+	# fit the model 
+	pr0 <- createPrior( density = dprior, sampler = rprior, best = theta, upper = theta_upper, lower = theta_lower )
+	bs0 <- createBayesianSetup(dl1, prior = pr0, names = names(theta)  ) #, parallel=3)
+	.sv = matrix( rep( theta, 3 ) , ncol = 3 )
+	rownames( .sv ) <- pnames 
+	.sv <- t( .sv )
+	f0 <- runMCMC(bs0, settings = list(iterations = iterations, thin = thin,  startValue = jitter(.sv))) 
+	
+	f0 
+}
+
+#' @export 
+sim_growthinference_map <- function(md, K = 50 , bsrep = 100, ncpu = 1)
+{
+	library( glue )
+	vcluster <- md$cluster[ grepl(md$cluster, patt = '^variant' ) ]
+	acluster <- md$cluster[ grepl(md$cluster, patt = '^ancestral' ) ]
+	tvcluster <- table(vcluster)
+	tacluster = table(acluster)
+	keep <- c(
+		names( tail( sort(tvcluster[ tvcluster > 1] ), K ))
+		, names( tail( sort(tacluster[ tacluster > 1 ] ), K ))
+		)
+	md1 <- md[ md$cluster %in% keep , ]
+	
+	## change timescale to generations 
+	Tg <- 6.5
+	md1$gtime <-  md1$sample_time / Tg 
+	## make initial guess of alpha0, alpha1 and alpha2 
+	Alpha01_0 <- t(sapply( keep, function( cid ){
+		X = md1 
+		X$y <- X$cluster == cid 
+		m = glm( y ~ gtime, data = X , family = binomial( link = 'logit'))
+		coef( m ) 
+	}))
+	
+	## make initial parameter vector 
+	varnames <- keep[ grepl(keep, patt = '^variant') ]
+	ancnames <- keep[ grepl(keep, patt = '^ancestral') ]
+	alpha2_0 = unname( mean( Alpha01_0[varnames,2]  ) - mean( Alpha01_0[ancnames,2] ) ) 
+	### recenter slope variables 
+	Alpha01_0[ varnames, 2] <- Alpha01_0[ varnames, 2] - alpha2_0 
+	#Alpha01_0[ , 2] <- Alpha01_0[ , 2] - mean( Alpha01_0[ancnames,2] )  
+	keep1 <- keep[-1] # only estimate parms for k-1 
+	intercept_names = paste(keep1, 'intercept', sep = '.')
+	slope_names =  paste(keep1, 'slope', sep = '.')
+	varnames1 <- intersect( varnames, keep1 )
+	variant_slopes =  paste(varnames1, 'slope', sep = '.')
+	theta <- c(  setNames( Alpha01_0[keep1,1], intercept_names  )
+		, setNames( Alpha01_0[keep1,2], slope_names )
+		, lineageEffect = alpha2_0 
+	)
+	taxis <- sort( unique( md1$gtime ))
+	dprior <- function(theta) {
+		dnorm( theta[ 'lineageEffect'] , 0, 1 , log = TRUE ) + 
+		sum(dnorm( theta[slope_names] , 0, .1 , log = TRUE)) 
+	}
+	of <- function( theta ) {
 		slope = theta[ slope_names ]
 		slope[variant_slopes] <- slope[variant_slopes] + theta[ 'lineageEffect' ]
 		inter = theta[ intercept_names ]
@@ -346,26 +442,35 @@ sim_growthinference_hierbayes <- function( md, K = 10, iterations = 1e6, thin = 
 		coords = cbind(match(md1$gtime, taxis) , match( md1$cluster, colnames(px)) )
 		pxterms = pmax(  px[ coords ] , 1e-4) # penalize zeros, but no inf's
 		rv = sum( log ( pxterms )) + dprior( theta )
-		#print(c( theta, rv ))
+		#print(theta)
 		#print( unname( rv ) )
 		if ( is.nan(rv))
 			return( -Inf )
 		rv
 	}
-	dl1 <- function( theta ){
-		if ( is.matrix( theta )){
-			return( apply( theta, MAR=2, dl ) )
-		} 
-		dl(theta )
+	o = optim( fn = of, par = theta, method = 'Nelder-Mead' , control = list(fnscale = -1, trace = 0, maxit = 5e3) , hessian=FALSE)
+	
+	bf <- c() 
+	if ( bsrep > 0 ){
+#~ browser()
+		bf = .sim_inference_bsmap( md, nrep = bsrep, K = K, ncpu = ncpu  )
 	}
-	# fit the model 
-	pr0 <- createPrior( density = dprior, sampler = rprior, best = theta, upper = theta_upper, lower = theta_lower )
-	bs0 <- createBayesianSetup(dl1, prior = pr0, names = names(theta)  ) #, parallel=3)
-	.sv = matrix( rep( theta, 3 ) , ncol = 3 )
-	rownames( .sv ) <- pnames 
-	.sv <- t( .sv )
-	f0 <- runMCMC(bs0, settings = list(iterations = 1e6, thin = 1000,  startValue = .sv)) 
-	f0 
+	
+	list( le = o$par['lineageEffect']
+		, p = ifelse( length(bf)>0, mean( bf <= 0 ), 1 )
+		, se = sd(bf) ,  keep = keep , fit = o$par , bs = bf )
+}
+
+
+.sim_inference_bsmap <- function ( md , K = 50, nrep = 500 , ncpu = 1)
+{
+	unlist(
+	parallel::mclapply( 1:nrep , function(i){
+		md1 <- md[ sample.int(nrow(md), replace=TRUE), ]
+		f = sim_growthinference_map( md1, K = K, bsrep = 0, ncpu =1  )
+		f$le 
+	}, mc.cores = ncpu )
+	)
 }
 
 
@@ -404,6 +509,103 @@ sim_replicate1 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 		, minClusterSize = 5 
 		, f1 = f 
 		, f2 = f2 
+		#, call = as.list(match.call())
+	)
+}
+
+
+#' Uses hier bayes model for identifying growth 
+#'
+#' @export 
+sim_replicate2 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")), TFIN, RHO0, k = 25, bs_replicates = 100,  ncpu = 1 , ... )
+{
+	o = sim_replicate( 
+		  mu = MU #cf coguk/g2-adf3.rds, based on B117
+		  , tfin = TFIN 
+		  , rho0 = RHO0 
+		 , ...
+	)
+	
+	
+	cdf <- o$clusterdf[ order( o$clusterdf$sample_time ) , ]
+	cdf2 <- o$clusterdf2[ order( o$clusterdf$sample_time ) , ]
+	
+	
+	f = tryCatch( sim_inference_clusterwise_logistic(o$clusterdf, minClusterSize = 5 , showres = FALSE)
+	 , error = function(e) NULL )
+	if ( is.null( f)){
+		return(
+			list( 
+				data = cdf[1:min(nrow(cdf), 250e3) , ]
+				, data2 = cdf[1:min(nrow(cdf2), 250e3) , ]
+				, fit = data.frame( 
+					tfin = TFIN 
+					, window = floor( (TFIN - MU)*365 )
+					, coef =0
+					, p = 1
+				)
+				, fit_domestic = data.frame( 
+					tfin = TFIN 
+					, window = floor( (TFIN - MU)*365 )
+					, coef = 0
+					, p =1
+				)
+				, fit_bayes = data.frame( 
+					tfin = TFIN 
+					, window = floor( (TFIN - MU)*365 )
+					, coef =0
+					, p = 1
+				)
+				, mu = MU 
+				, rho0 = RHO0 
+				, minClusterSize = 5 
+				, f1 = NA
+				, f2 = NA 
+				, X3 = NA
+			)
+		)
+	}
+	#c( (tt - MU)*365, o1$coef  )
+	
+	f2 = sim_inference_clusterwise_logistic(o$clusterdf2, minClusterSize = 5 , showres = FALSE)
+	
+	f3 = tryCatch( sim_growthinference_map(o$clusterdf, K = k , bsrep = bs_replicates, ncpu = ncpu )
+	, error = function(e) {print(e); NULL} )
+	if (is.null( f3 )){
+		fbcoef <-  0
+		fbp = 1
+	} else{
+		fbcoef <- f3$le
+		fbp = f3$p
+	}
+	
+	list( 
+		data = cdf[1:min(nrow(cdf), 250e3) , ]
+		, data2 = cdf[1:min(nrow(cdf2), 250e3) , ]
+		, fit = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( f$coef[1] )
+			, p = unname( f$coef[2]  ) 
+		)
+		, fit_domestic = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( f2$coef[1] )
+			, p = unname( f2$coef[2]  ) 
+		)
+		, fit_bayes = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = fbcoef 
+			, p = fbp
+		)
+		, mu = MU 
+		, rho0 = RHO0 
+		, minClusterSize = 5 
+		, f1 = f 
+		, f2 = f2 
+		, f3 = f3 
 		#, call = as.list(match.call())
 	)
 }
