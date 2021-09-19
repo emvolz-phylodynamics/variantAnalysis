@@ -49,12 +49,15 @@ sim_cluster_growth <- function(tstart, tfin, R
 #' @param mu Mean time of import
 #' @param sigma std dev of importation time
 #' @return $variant and $ancestral contain times of import 
-sim_importation_time <- function(E_imports0, E_imports1, mu, sigma ) {
+sim_importation_time <- function(E_imports0, E_imports1, mu, sigma
+	, shift_ancestral = 0#-21/365 
+) 
+{
 	n0 <- rpois( 1, E_imports0 )
 	n1 <- rpois( 1, E_imports1 )
 	list(
 		variant = rnorm( n0, mu, sigma )
-		, ancestral = rnorm( n1, mu, sigma )
+		, ancestral = rnorm( n1, mu + shift_ancestral, sigma )
 	)
 }
 
@@ -606,6 +609,119 @@ sim_replicate2 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")
 		, f1 = f 
 		, f2 = f2 
 		, f3 = f3 
+		#, call = as.list(match.call())
+	)
+}
+
+
+#' Three methods: gam adjusted for imports; simple logistic; hier bayes 
+#' also simulates breakthrough 
+#'
+#' @export 
+sim_replicate3 <- function( MU = lubridate::decimal_date( as.Date( "2021-04-18")), TFIN, RHO0, k = 25, bs_replicates = 100,  breakthroughrate = .41, or_breakthrough=1.25, ncpu = 1 , ... )
+{
+	o = sim_replicate( 
+		  mu = MU #cf coguk/g2-adf3.rds, based on B117
+		  , tfin = TFIN 
+		  , rho0 = RHO0 
+		 , ...
+	)
+	
+	
+	cdf <- o$clusterdf[ order( o$clusterdf$sample_time ) , ]
+	cdf2 <- o$clusterdf2[ order( o$clusterdf$sample_time ) , ]
+	
+	
+	## simulate breakthrough 
+	or_breakthroughrate = breakthroughrate / ( 1- breakthroughrate )
+	or_vbreakthroughrate = or_breakthrough * or_breakthroughrate 
+	vbreakthroughrate <- or_vbreakthroughrate / ( 1 + or_vbreakthroughrate )
+	
+	cdf$breakthrough <- rbinom ( nrow(cdf) , size = 1, prob = breakthroughrate )
+	i <- which( cdf$lineage == 'variant' )
+	cdf[i,]$breakthrough <- rbinom ( length(i) , size = 1, prob = vbreakthroughrate )
+	
+	cdf2$breakthrough <- rbinom ( nrow(cdf2) , size = 1, prob = breakthroughrate )
+	i <- which( cdf2$lineage == 'variant' )
+	cdf2[i,]$breakthrough <- rbinom ( length(i) , size = 1, prob = vbreakthroughrate )
+	
+	### estimate or br
+	brm = glm( breakthrough ~ lineage, data = cdf2 , family = binomial( link = 'logit' ))
+	sbrm = summary( brm )
+	
+	
+	## fit growth 
+	library( mgcv )
+	clusters <- unique( cdf$cluster )
+	observed <- setNames( rep(FALSE, length( clusters )), clusters)
+	cdf$first_obs <- FALSE
+	cdf$first_obs_anc <- FALSE
+	for ( i in 1:nrow( cdf ) ){
+		if (   (cdf$lineage[i] == 'variant')  &    (!(observed[ cdf$cluster[i] ]))){
+			cdf$first_obs[i] <- TRUE 
+			observed[ cdf$cluster[i] ] <- TRUE 
+		} else if ( (cdf$lineage[i] == 'ancestral')  &    (!(observed[ cdf$cluster[i] ])) ){
+			cdf$first_obs_anc[i] <- TRUE 
+			observed[ cdf$cluster[i] ] <- TRUE 
+		}
+	} 
+	### variant importation intensity 
+	f0 <- gam( first_obs ~ s(sample_time) , data = cdf[ cdf$lineage=='variant', ], family = binomial( link = 'logit'))
+	f0a <- gam( first_obs_anc ~ s(sample_time) , data = cdf[ cdf$lineage=='ancestral', ], family = binomial( link = 'logit'))
+	cdf$variant_importation_intensity = predict( f0, newdata = cdf  )
+	cdf$ancestral_importation_intensity = predict( f0a, newdata = cdf  )
+	cdf$net_import = with( cdf, exp( variant_importation_intensity  - ancestral_importation_intensity ) )
+	f1 = glm ( (lineage=='variant') ~  net_import  + sample_time, family = binomial( link='logit'), data = cdf  )
+	sf1 <- summary( f1 ) 
+	
+	f2 = glm( (lineage == 'variant') ~ sample_time , data = cdf , family = binomial( link = 'logit' ) )
+	sf2 <- summary( f2 ) 
+	
+	f3 = tryCatch( sim_growthinference_map(o$clusterdf, K = k , bsrep = bs_replicates, ncpu = ncpu )
+	, error = function(e) {print(e); NULL} )
+	if (is.null( f3 )){
+		fbcoef <-  0
+		fbp = 1
+	} else{
+		fbcoef <- f3$le
+		fbp = f3$p
+	}
+	
+	list( 
+		data = cdf[1:min(nrow(cdf), 250e3) , ]
+		, data2 = cdf[1:min(nrow(cdf2), 250e3) , ]
+		, fit_importation_adjusted = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			#~ 			, coef = unname( sf1$p.coef[ 'sample_time'])
+			#~ 			, p = unname( sf1$p.pv[ 'sample_time' ] )
+			, coef = unname( sf1$coefficients[3,1] ) 
+			, p = unname( sf1$coefficients[3,4]  ) 
+		)
+		, fit_logistic = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( sf2$coefficients[2,1] )
+			, p = unname( sf2$coefficients[2,4]  ) 
+		)
+		, fit_bayes = data.frame( 
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = fbcoef 
+			, p = fbp
+		)
+		, fit_breakthrough = data.frame(
+			tfin = TFIN 
+			, window = floor( (TFIN - MU)*365 )
+			, coef = unname( sbrm$coefficients[2,1] )
+			, p = unname( sbrm$coefficients[2,4]  ) 
+		)
+		, mu = MU 
+		, rho0 = RHO0 
+		, minClusterSize = 5 
+		#~ 		, f1 = f 
+		#~ 		, f2 = f2 
+		#~ 		, f3 = f3 
 		#, call = as.list(match.call())
 	)
 }

@@ -4,7 +4,13 @@
 \alias{sim_importation_time}
 \title{Simulate time and number of importation events for clusters of two lineages}
 \usage{
-sim_importation_time(E_imports0, E_imports1, mu, sigma)
+sim_importation_time(
+  E_imports0,
+  E_imports1,
+  mu,
+  sigma,
+  shift_ancestral = -21/365
+)
 }
 \arguments{
 \item{E_imports0}{Expected number of imports for variant 0 which initiate cluster}
