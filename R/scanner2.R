@@ -31,7 +31,7 @@ scanner2 <- function(tre
  , min_cluster_age_yrs = 1.5/12
  , min_date = NULL
  , max_date = NULL 
- , min_blen = 0
+ , min_blen = min( tre$edge.length[ tre$edge.length > 0 ] )/2
  , ncpu = 8
  , output_dir = '.' 
  , include_pillar1 = TRUE 
@@ -124,6 +124,22 @@ print(paste('Starting ', Sys.time()) )
 	amd = amd[ , c('sequence_name', 'sample_time', 'sample_date', 'region', 'lineage') ] 
 	amd <- amd [ amd$sequence_name %in% tre$tip.label ,  ] 
 	
+	# prune tree
+	if ( !( root_on_tip %in% amd$sequence_name)){
+		amd <- rbind( amd, data.frame( 
+			sequence_name = root_on_tip
+			, sample_time = root_on_tip_sample_time
+			, sample_date = as.Date( lubridate::date_decimal( root_on_tip_sample_time ) )
+			, region = NA
+			, lineage = NA
+		))
+	}
+	tre <- keep.tip( tre, intersect( tre$tip.label , amd$sequence_name )  )
+	tr2 = root( tre, outgroup= root_on_tip, resolve.root = TRUE )
+	
+	sts <- setNames( amd$sample_time[ match( tr2$tip.label, amd$sequence_name ) ] , tr2$tip.label )
+
+	
 	## treat tip labs not in amd differently 
 	if ( compute_treestructure ) {
 		# prune the tree to match amd and make rooted
@@ -133,20 +149,6 @@ print(paste('Starting ', Sys.time()) )
 		library( treestructure ) 
 		library (Rlsd2 )
 		
-		# prune tree
-		if ( !( root_on_tip %in% amd$sequence_name)){
-			amd <- rbind( amd, data.frame( 
-				sequence_name = root_on_tip
-				, sample_time = root_on_tip_sample_time
-				, sample_date = as.Date( lubridate::date_decimal( root_on_tip_sample_time ) )
-				, region = NA
-				, lineage = NA
-			))
-		}
-		tre <- keep.tip( tre, intersect( tre$tip.label , amd$sequence_name )  )
-		tr2 = root( tre, outgroup= root_on_tip, resolve.root = TRUE )
-		
-		sts <- setNames( amd$sample_time[ match( tr2$tip.label, amd$sequence_name ) ] , tr2$tip.label )
 		message( paste( Sys.time() , 'Starting time tree' ))
 		lsd_args$inputTree = tr2 
 		lsd_args$inputDate = sts 
@@ -166,10 +168,7 @@ print(paste('Starting ', Sys.time()) )
 		ts_args$tre = tre 
 		ts <- do.call( treestructure::trestruct.fast, ts_args )
 		message( paste( Sys.time() , 'Computed treestructure clusters' ))
-	} else{
-		# keep the tips around so that internal node numbers will match input tree 
-		tre$tip.label [ !(tre$tip.label %in% amd$sequence_name) ] <- NA 
-	}
+	} 
 	
 	# root to tip 
 	ndel <- node.depth.edgelength( tre ) 
@@ -418,6 +417,7 @@ print(paste('Starting ', Sys.time()) )
 		nodes <- union( ts$cluster_mrca, nodes )
 	}
 	report_nodes <- nodes[ seq(1, length(nodes), by = report_freq) ] #progress reporting 
+	node_ancestors <- do.call( c, lapply( nodes, function(u) ancestors[[u]] ))
 	Y = do.call( rbind, 
 		parallel::mclapply( nodes , function(u){
 			tu = descendantSids[[u]]
@@ -438,9 +438,10 @@ print(paste('Starting ', Sys.time()) )
 			 , logistic_growth_rate_p = lgs[2] 
 			 , clock_outlier = .clock_outlier_stat(u)
 			 , lineage = paste( names(sort(table(ulins),decreasing=TRUE)) , collapse = '|' )
-			 , lineage_summary = .lineage_summary( tu ) 
-			 , cocirc_lineage_summary = .lineage_summary( ta )
-			 , region_summary = .region_summary( tu )
+			 , lineage_summary = tryCatch( .lineage_summary( tu ) , error = function(e) as.character(e) )
+			 , cocirc_lineage_summary = tryCatch( .lineage_summary( ta ), error = function(e) as.character(e))
+			 , region_summary = tryCatch( .region_summary( tu ), error = function(e) as.character(e))
+			 , external_cluster = !(u %in% node_ancestors ) 
 			 , tips = paste( tu, collapse = '|' )
 			 , stringsAsFactors=FALSE
 			)
@@ -457,6 +458,8 @@ print(paste('Starting ', Sys.time()) )
 	if ( compute_treestructure ){
 		zdf = data.frame( node_number = ts$cluster_mrca , treestructure_z = ts$cluster_z)
 		Y = merge( Y, zdf, all.x = TRUE, sort = FALSE  , by = 'node_number' )
+	} else{
+		Y$treestructure_z = NA 
 	}
 	
 	dir.create(output_dir, showWarnings = FALSE)
