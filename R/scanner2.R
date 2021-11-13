@@ -316,12 +316,18 @@ print(paste('Starting ', Sys.time()) )
 			p = s$coefficients[2, 4 ]
 		}
 		## time dep growth 
-		m1 = mgcv::gam( type=='clade' ~ s(sample_time, bs = "bs", k = 4, m=1) , family = binomial(link='logit') , data = X)
-		tout = seq( min(sample_time) , max(sample_time), length=5)
+		m1 = mgcv::gam( type=='clade' ~ s(time, bs = "bs", k = 4, m=1) , family = binomial(link='logit') , data = X)
+		tout = seq( min(X$time) , max(X$time), length=5)
 		tout1 = tout[4] + diff(tout)[1]/2 
-		dlo = diff( predict( m1, newdata = data.frame( sample_time = c( tout1 , max(tout))) ) 
-		r=dlo*7 / ((max(tout) - tout1)*365) 
-		c( lgr = rv, lgrp = p, gam_r =r , dAIC = AIC(m1) - AIC(m) )
+		dlo = diff( predict( m1, newdata = data.frame( type=NA, time = c( tout1 , max(tout))) )  )
+		r=dlo*Tg / ((max(tout) - tout1)) # 
+		aic = c(AIC(m), AIC(m1))
+		list( lgr = rv, lgrp = p, gam_r =r 
+		  , AIC = aic[1]
+		  , AIC_gam = aic[2]
+		  , growthrates = setNames( c(rv, r), c('Logistic', 'GAM') )
+		  , relative_model_support = setNames( exp(  min(aic) - aic  )/2 ,  c('Logistic', 'GAM') )
+		  )
 	}
 	
 	# log median p-value of rtt predicted divergence of tips under u
@@ -434,6 +440,7 @@ print(paste('Starting ', Sys.time()) )
 			ulins <- amd$lineage[ match( tu, amd$sequence_name)]
 			alins <- amd$lineage[ match( ta, amd$sequence_name)]
 			lgs = .logistic_growth_stat ( u, ta )
+			best_gr = lgs$growthrates[ which.max(lgs$relative_model_support) ]
 			X = data.frame( cluster_id = ifelse(is.null(nodedata)
 				, as.character(u) 
 				,  as.character(nodedata[ as.character(u), 'cluster_id' ]) 
@@ -443,8 +450,11 @@ print(paste('Starting ', Sys.time()) )
 			 , most_recent_tip = as.Date( date_decimal( max( na.omit(sts[ tu ])  ) ) )
 			 , least_recent_tip = as.Date( date_decimal( min( na.omit( sts[ tu ])  ) ) )
 			 , cluster_size = length( tu )
-			 , logistic_growth_rate = lgs[1]
-			 , logistic_growth_rate_p = lgs[2] 
+			 , logistic_growth_rate = best_gr
+			 , logistic_growth_rate_p = lgs$lgrp
+			 , simple_logistic_growth_rate = lgs$lgr
+			 , gam_logistic_growth_rate = lgs$gam_r 
+			 , simple_logistic_model_support = lgs$relative_model_support[ 'Logistic' ] 
 			 , clock_outlier = .clock_outlier_stat(u)
 			 , lineage = paste( names(sort(table(ulins),decreasing=TRUE)) , collapse = '|' )
 			 , lineage_summary = tryCatch( .lineage_summary( tu ) , error = function(e) as.character(e) )
