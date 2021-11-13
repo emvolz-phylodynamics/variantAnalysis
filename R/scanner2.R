@@ -135,6 +135,9 @@ print(paste('Starting ', Sys.time()) )
 		))
 	}
 	tre <- keep.tip( tre, intersect( tre$tip.label , amd$sequence_name )  )
+	if (  !( root_on_tip %in% tre$tip.label ) )  {
+		stop('Outgroup sequence missing from input tree.')
+	}
 	tr2 = root( tre, outgroup= root_on_tip, resolve.root = TRUE )
 	
 	sts <- setNames( amd$sample_time[ match( tr2$tip.label, amd$sequence_name ) ] , tr2$tip.label )
@@ -458,6 +461,9 @@ print(paste('Starting ', Sys.time()) )
 			X
 		}, mc.cores = ncpu )
 	)
+	if ( ! all( nodes %in% Y$node_number)){
+		stop('Statistics not computed for all nodes. Possible that memory exceeded with ncpu > 1. Try with ncpu = 1.') 
+	}
 	Y <- Y[ order( Y$logistic_growth_rate , decreasing=TRUE ), ] 
 	
 	## add in trestruct stat 
