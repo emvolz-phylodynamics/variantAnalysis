@@ -312,7 +312,13 @@ print(paste('Starting ', Sys.time()) )
 		} else{ 
 			p = s$coefficients[2, 4 ]
 		}
-		c( rv, p )
+		## time dep growth 
+		m1 = mgcv::gam( type=='clade' ~ s(sample_time, bs = "bs", k = 4, m=1) , family = binomial(link='logit') , data = X)
+		tout = seq( min(sample_time) , max(sample_time), length=5)
+		tout1 = tout[4] + diff(tout)[1]/2 
+		dlo = diff( predict( m1, newdata = data.frame( sample_time = c( tout1 , max(tout))) ) 
+		r=dlo*7 / ((max(tout) - tout1)*365) 
+		c( lgr = rv, lgrp = p, gam_r =r , dAIC = AIC(m1) - AIC(m) )
 	}
 	
 	# log median p-value of rtt predicted divergence of tips under u
